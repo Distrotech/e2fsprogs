@@ -30,7 +30,7 @@ struct ext2_ext_attr_entry {
 	__u32	e_value_block;	/* disk block attribute is stored on (n/i) */
 	__u32	e_value_size;	/* size of attribute value */
 	__u32	e_hash;		/* hash value of name and value */
-#if 0
+#if 1
 	char	e_name[0];	/* attribute name */
 #endif
 };
