@@ -1,0 +1,40 @@
+Pass 1: Checking inodes, blocks, and sizes
+Inode 13 is in use, but has dtime set.  Fix? yes
+
+Inode 13 has illegal block(s).  Clear? yes
+
+Illegal block #0 (4294967295) in inode 13.  CLEARED.
+Illegal block #1 (4294967295) in inode 13.  CLEARED.
+Inode 13, i_blocks is 3453453, should be 140.  Fix? yes
+
+Pass 2: Checking directory structure
+i_file_acl for inode 13 (/testfile) is 345, should be zero.
+Clear? yes
+
+i_faddr for inode 13 (/testfile) is 34534, should be zero.
+Clear? yes
+
+Inode 13 is badly corrupt (badness value = 9).  Clear? yes
+
+Pass 3: Checking directory connectivity
+Pass 4: Checking reference counts
+Pass 5: Checking group summary information
+Block bitmap differences:  -(1368--1369)
+Fix? yes
+
+Free blocks count wrong for group #0 (6823, counted=6825).
+Fix? yes
+
+Free blocks count wrong (14691, counted=14693).
+Fix? yes
+
+Free inodes count wrong for group #0 (2039, counted=2037).
+Fix? yes
+
+Free inodes count wrong (4087, counted=4085).
+Fix? yes
+
+
+test_filesys: ***** FILE SYSTEM WAS MODIFIED *****
+test_filesys: 11/4096 files (9.1% non-contiguous), 1691/16384 blocks
+Exit status is 1
