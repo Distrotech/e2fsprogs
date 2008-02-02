@@ -415,9 +415,16 @@ struct ext2_inode_large {
 	__u32	i_atime_extra;	/* extra Access time (nsec << 2 | epoch) */
 	__u32	i_crtime;	/* File creation time */
 	__u32	i_crtime_extra;	/* extra File creation time (nsec << 2 | epoch)*/
+	__u32   i_version_hi;   /* high 32 bits for 64-bit version */
 };
 
 #define i_size_high	i_dir_acl
+
+#define EXT2_FITS_IN_INODE(inode, field)		\
+	((offsetof(struct ext2_inode_large, field) +	\
+	 sizeof((inode)->field)) <=			\
+	 		 (EXT2_GOOD_OLD_INODE_SIZE +	\
+	     		  (inode)->i_extra_isize))	\
 
 #if defined(__KERNEL__) || defined(__linux__)
 #define i_reserved1	osd1.linux1.l_i_reserved1
@@ -661,6 +668,7 @@ struct ext2_super_block {
 #define EXT2_FEATURE_RO_COMPAT_SUPP	(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER| \
 					 EXT2_FEATURE_RO_COMPAT_LARGE_FILE| \
 					 EXT4_FEATURE_RO_COMPAT_DIR_NLINK| \
+					 EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE| \
 					 EXT2_FEATURE_RO_COMPAT_BTREE_DIR)
 
 /*

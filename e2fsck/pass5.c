@@ -64,6 +64,42 @@ void e2fsck_pass5(e2fsck_t ctx)
 	ext2fs_free_block_bitmap(ctx->block_found_map);
 	ctx->block_found_map = 0;
 
+	if (ctx->flags & E2F_FLAG_EXPAND_EISIZE) {
+		int min_extra_isize;
+
+		if (!ctx->expand_eisize_map)
+			goto set_min_extra_isize;
+
+		for (pctx.ino = 1; pctx.ino < ctx->fs->super->s_inodes_count;
+		     pctx.ino++) {
+			if (ext2fs_test_inode_bitmap(ctx->expand_eisize_map,
+			    pctx.ino)) {
+				fix_problem(ctx, PR_5_EXPAND_EISIZE, &pctx);
+				ext2fs_expand_extra_isize(ctx->fs, pctx.ino, 0,
+							  ctx->want_extra_isize,
+							  NULL, NULL);
+			}
+		}
+		ext2fs_free_inode_bitmap(ctx->expand_eisize_map);
+
+set_min_extra_isize:
+		if (ctx->fs->super->s_min_extra_isize)
+			min_extra_isize = ctx->fs->super->s_min_extra_isize;
+		else
+			min_extra_isize = ctx->want_extra_isize;
+		if (ctx->min_extra_isize >= min_extra_isize &&
+		    !ctx->fs_unexpanded_inodes) {
+			ctx->fs->super->s_min_extra_isize =ctx->min_extra_isize;
+			ctx->fs->super->s_feature_ro_compat |=
+					EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE;
+		} else {
+			ctx->fs->super->s_min_extra_isize = 0;
+			ctx->fs->super->s_feature_ro_compat &=
+					~EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE;
+		}
+		ext2fs_mark_super_dirty(ctx->fs);
+	}
+
 #ifdef RESOURCE_TRACK
 	if (ctx->options & E2F_OPT_TIME2) {
 		e2fsck_clear_progbar(ctx);

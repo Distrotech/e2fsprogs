@@ -338,5 +338,29 @@ ec	EXT2_ET_EXTENT_LEAF_BAD,
 ec	EXT2_ET_EXTENT_NO_SPACE,
 	"No free space in extent map"
 
+ec	EXT2_ET_EA_BAD_MAGIC,
+	"Extended attribute block has bad magic value"
+
+ec	EXT2_ET_EA_BAD_ENTRIES,
+	"Extended attribute block has bad entries"
+
+ec	EXT2_ET_EA_NO_SPACE,
+	"No free space for extended attribute"
+
+ec	EXT2_ET_EA_TOO_BIG,
+	"Extended attribute too big for buffer"
+
+ec	EXT2_ET_EA_NAME_TOO_BIG,
+	"Extended attribute name too big for header"
+
+ec	EXT2_ET_EA_BAD_NAME,
+	"Extended attribute name is bad"
+
+ec	EXT2_ET_EA_NAME_NOT_FOUND,
+	"Extended attribute name not found"
+
+ec	EXT2_ET_EA_NAME_EXISTS,
+	"Extended attribute name already exists"
+
 	end
 
