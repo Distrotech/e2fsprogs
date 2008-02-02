@@ -6,13 +6,22 @@
 Summary: Utilities for managing the second extended (ext2) filesystem.
 Name: e2fsprogs
 Version: @E2FSPROGS_PKGVER@
-Release: 0
+Release: 0%{_vendor}
 License: GPLv2
 Group: System Environment/Base
 Source:  ftp://download.sourceforge.net/pub/sourceforge/e2fsprogs/e2fsprogs-%{version}.tar.gz
 Url: http://e2fsprogs.sourceforge.net/
 Prereq: /sbin/ldconfig
 BuildRoot: %{_tmppath}/%{name}-root
+%if %{_vendor} == "suse"
+Group: System/Filesystems
+Provides: e2fsbn ext2fs libcom_err = %{version}
+Obsoletes: ext2fs libcom_err < %{version}
+%else
+Group: System Environment/Base
+Obsoletes: e2fsprogs-libs < %{version}
+Provides: e2fsprogs-libs = %{version}
+%endif
 
 %description
 The e2fsprogs package contains a number of utilities for creating,
