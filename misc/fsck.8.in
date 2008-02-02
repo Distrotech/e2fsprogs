@@ -180,6 +180,10 @@ option,
 will use the specified filesystem type.  If this type is not
 available, then the default file system type (currently ext2) is used. 
 .TP
+.B \-m
+Do not check mounted filesystems and return an exit code of 0
+for mounted filesystems.
+.TP
 .B \-A
 Walk through the
 .I /etc/fstab

@@ -103,6 +103,7 @@ int noexecute = 0;
 int serialize = 0;
 int skip_root = 0;
 int like_mount = 0;
+int ignore_mounted = 0;
 int notitle = 0;
 int parallel_root = 0;
 int progress = 0;
@@ -790,7 +791,7 @@ static void compile_fs_type(char *fs_type, struct fs_type_compile *cmp)
 #if 0
 		printf("Adding %s to list (type %d).\n", s, cmp->type[num]);
 #endif
-	        cmp->list[num++] = string_copy(s);
+		cmp->list[num++] = string_copy(s);
 		s = strtok(NULL, ",");
 	}
 	free(list);
@@ -816,7 +817,7 @@ static int opt_in_list(char *opt, char *optlist)
 		}
 		s = strtok(NULL, ",");
 	}
-        free(list);
+	free(list);
 	return 0;
 }
 
@@ -850,6 +851,56 @@ static int fs_match(struct fs_info *fs, struct fs_type_compile *cmp)
 	if (checked_type == 0)
 		return 1;
 	return (cmp->negate ? !ret : ret);
+}
+
+/* Check to see whether a filesystem is already mounted */
+static int is_mounted(struct fs_info *fs)
+{
+	struct stat st_buf;
+	dev_t fs_rdev;
+	char *testdir;
+	int retval = 0;
+
+	if (!fs->mountpt) {
+		/*
+		 * We have already read /proc/mounts
+		 * so any device without a mountpoint
+		 * is indeed not mounted.
+		 */
+		return 0;
+	}
+
+	if (!strcmp(fs->mountpt,"/")) {
+		/* Root should be always mounted */
+		return 1;
+	}
+
+	if (stat(fs->mountpt, &st_buf) < 0)
+		return 0;
+
+	if (!S_ISDIR(st_buf.st_mode)) {
+		/* This is not a directory, cannot be mounted */
+		return 0;
+	}
+
+	fs_rdev = st_buf.st_dev;
+
+	/* Compare with the upper directory */
+	testdir = malloc(strlen(fs->mountpt) + 4);
+	strcpy(testdir,fs->mountpt);
+	if (fs->mountpt[strlen(fs->mountpt) - 1] == '/')
+		strcat(testdir,"..");
+	else
+		strcat(testdir,"/..");
+
+	if (stat(testdir, &st_buf) == 0) {
+		if (st_buf.st_dev != fs_rdev) {
+			retval = 1;
+		}
+	}
+	free(testdir);
+
+	return retval;
 }
 
 /* Check if we should ignore this filesystem. */
@@ -1008,6 +1059,15 @@ static int check_all(NOARGS)
 			if (fs->passno > passno) {
 				not_done_yet++;
 				continue;
+			}
+			if (ignore_mounted) {
+				/*
+				 * Ignore mounted devices.
+				 */
+				if (is_mounted(fs)) {
+					fs->flags |= FLAG_DONE;
+					continue;
+				}
 			}
 			/*
 			 * If a filesystem on a particular device has
@@ -1186,6 +1246,9 @@ static void PRS(int argc, char *argv[])
 			case 'P':
 				parallel_root++;
 				break;
+			case 'm':
+				ignore_mounted++;
+				break;
 			case 's':
 				serialize++;
 				break;
@@ -1261,6 +1324,10 @@ int main(int argc, char *argv[])
 		fstab = _PATH_MNTTAB;
 	load_fs_info(fstab);
 
+	/* Load info from /proc/mounts, too */
+	if (ignore_mounted)
+		load_fs_info("/proc/mounts");
+
 	/* Update our search path to include uncommon directories. */
 	if (oldpath) {
 		fsck_path = malloc (strlen (fsck_prefix_path) + 1 +
@@ -1302,6 +1369,14 @@ int main(int argc, char *argv[])
 					      0, -1, -1);
 			if (!fs)
 				continue;
+		}
+		if (ignore_mounted) {
+			/*
+			 * Ignore mounted devices.
+			 */
+			if (is_mounted(fs)) {
+				continue;
+			}
 		}
 		fsck_device(fs, interactive);
 		if (serialize ||
