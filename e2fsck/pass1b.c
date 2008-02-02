@@ -596,8 +596,8 @@ static void delete_file(e2fsck_t ctx, ext2_ino_t ino,
 		fix_problem(ctx, PR_1B_BLOCK_ITERATE, &pctx);
 	ext2fs_unmark_inode_bitmap(ctx->inode_used_map, ino);
 	ext2fs_unmark_inode_bitmap(ctx->inode_dir_map, ino);
-	if (ctx->inode_bad_map)
-		ext2fs_unmark_inode_bitmap(ctx->inode_bad_map, ino);
+ 	if (ctx->inode_badness)
+ 		e2fsck_mark_inode_bad(ctx, ino, 0);
 	ext2fs_inode_alloc_stats2(fs, ino, -1, LINUX_S_ISDIR(inode.i_mode));
 
 	/* Inode may have changed by block_iterate, so reread it */

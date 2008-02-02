@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stddef.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -188,6 +189,18 @@ struct resource_track {
  */
 typedef struct ea_refcount *ext2_refcount_t;
 
+#define EXT4_FITS_IN_INODE(ext4_inode, einode, field)	\
+	((offsetof(typeof(*ext4_inode), field) +	\
+	  sizeof(ext4_inode->field))			\
+	<= (EXT2_GOOD_OLD_INODE_SIZE +			\
+	    (einode)->i_extra_isize))			\
+
+#define BADNESS_NORMAL 		1
+#define BADNESS_HIGH		2
+#define BADNESS_THRESHOLD	8
+#define BADNESS_BAD_MODE	100
+#define BADNESS_LARGE_FILE 	2199023255552ULL
+
 /*
  * This is the global e2fsck structure.
  */
@@ -217,7 +230,6 @@ struct e2fsck_struct {
 			unsigned long max);
 
 	ext2fs_inode_bitmap inode_used_map; /* Inodes which are in use */
-	ext2fs_inode_bitmap inode_bad_map; /* Inodes which are bad somehow */
 	ext2fs_inode_bitmap inode_dir_map; /* Inodes which are directories */
 	ext2fs_inode_bitmap inode_bb_map; /* Inodes which are in bad blocks */
 	ext2fs_inode_bitmap inode_imagic_map; /* AFS inodes */
@@ -232,6 +244,8 @@ struct e2fsck_struct {
 	 */
 	ext2_icount_t	inode_count;
 	ext2_icount_t inode_link_info;
+	ext2_icount_t inode_badness;
+	int inode_badness_threshold;
 
 	ext2_refcount_t	refcount;
 	ext2_refcount_t refcount_extra;
@@ -332,6 +346,7 @@ struct e2fsck_struct {
 	/* misc fields */
 	time_t now;
 	time_t time_fudge;	/* For working around buggy init scripts */
+	time_t now_tolerance_val;
 	int ext_attr_ver;
 	profile_t	profile;
 	int blocks_per_page;
@@ -440,6 +455,8 @@ extern int e2fsck_pass1_check_device_inode(ext2_filsys fs,
 					   struct ext2_inode *inode);
 extern int e2fsck_pass1_check_symlink(ext2_filsys fs,
 				      struct ext2_inode *inode, char *buf);
+extern void e2fsck_mark_inode_bad(e2fsck_t ctx, ino_t ino, int count);
+extern int is_inode_bad(e2fsck_t ctx, ino_t ino);
 
 /* pass2.c */
 extern int e2fsck_process_bad_inode(e2fsck_t ctx, ext2_ino_t dir,

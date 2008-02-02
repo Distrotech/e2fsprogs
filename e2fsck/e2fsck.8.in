@@ -178,6 +178,13 @@ following options are supported:
 Assume the format of the extended attribute blocks in the filesystem is
 the specified version number.  The version number may be 1 or 2.  The
 default extended attribute version format is 2.
+.TP
+.BI inode_badness_threshold= threshold_value
+A badness counter is associated with every inode, which determines the degree
+of inode corruption. Each error found in the inode will increase the badness by
+1 or 2, and inodes with a badness at or above
+.I threshold_value will be prompted for deletion. The default
+.I threshold_value is 7.
 .RE
 .TP
 .B \-f

@@ -553,6 +553,18 @@ static void parse_extended_opts(e2fsck_t ctx, const char *opts)
 				extended_usage++;
 				continue;
 			}
+		/* -E inode_badness_threshold=<value> */
+ 		} else if (strcmp(token, "inode_badness_threshold") == 0) {
+ 			if (!arg) {
+ 				extended_usage++;
+ 				continue;
+ 			}
+ 			ctx->inode_badness_threshold = strtoul(arg, &p, 0);
+			if (*p != '\0' || (ctx->inode_badness_threshold > 200)){
+				fprintf(stderr, _("Invalid badness value.\n"));
+				extended_usage++;
+				continue;
+			}
 		} else {
 			fprintf(stderr, _("Unknown extended option: %s\n"),
 				token);
@@ -567,6 +579,7 @@ static void parse_extended_opts(e2fsck_t ctx, const char *opts)
 		       "is set off by an equals ('=') sign.  "
 			"Valid extended options are:\n"
 		       "\tea_ver=<ea_version (1 or 2)>\n"
+ 		       "\tinode_badness_threhold=(value)\n"
  		       "\texpand_extra_isize\n"
 		       "\n"), stderr);
 		exit(1);
@@ -630,6 +643,9 @@ static errcode_t PRS(int argc, char *argv[], e2fsck_t *ret_ctx)
 		config_fn[0] = cp;
 	profile_set_syntax_err_cb(syntax_err_report);
 	profile_init(config_fn, &ctx->profile);
+
+	ctx->inode_badness_threshold = BADNESS_THRESHOLD;
+	ctx->now_tolerance_val = 172800; /* Two days */
 
 	while ((c = getopt (argc, argv, "panyrcC:B:dE:fvtFVM:b:I:j:P:l:L:N:SsDk")) != EOF)
 		switch (c) {

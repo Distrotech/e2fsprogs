@@ -786,6 +786,9 @@ struct problem_context {
 /* Inode found in group unused inodes area */
 #define PR_2_INOREF_IN_UNUSED		0x020046
 
+/* Inode completely corrupt */
+#define PR_2_INODE_TOOBAD		0x020047
+
 /*
  * Pass 3 errors
  */

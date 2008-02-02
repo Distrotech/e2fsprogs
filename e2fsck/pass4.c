@@ -199,6 +199,7 @@ void e2fsck_pass4(e2fsck_t ctx)
 
 	ext2fs_free_icount(ctx->inode_link_info); ctx->inode_link_info = 0;
 	ext2fs_free_icount(ctx->inode_count); ctx->inode_count = 0;
+	ext2fs_free_icount(ctx->inode_badness); ctx->inode_badness = 0;
 	ext2fs_free_inode_bitmap(ctx->inode_bb_map);
 	ctx->inode_bb_map = 0;
 	ext2fs_free_inode_bitmap(ctx->inode_imagic_map);

@@ -1308,6 +1308,11 @@ static struct e2fsck_problem problem_table[] = {
 	  N_("@i %i found in @g %g unused inodes area.  "),
 	  PROMPT_FIX, PR_PREEN_OK },
 
+	/* Inode too bad */
+	{ PR_2_INODE_TOOBAD,
+	  N_("@i %i is badly corrupt (badness value = %N).  "),
+	  PROMPT_CLEAR, PR_PREEN_OK },
+
 	/* Pass 3 errors */
 
 	/* Pass 3: Checking directory connectivity */
