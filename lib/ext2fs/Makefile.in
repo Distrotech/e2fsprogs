@@ -69,6 +69,7 @@ OBJS= $(DEBUGFS_LIB_OBJS) $(RESIZE_LIB_OBJS) $(E2IMAGE_LIB_OBJS) \
 	unlink.o \
 	valid_blk.o \
 	version.o \
+	crc32.o \
 	crc16.o \
 	csum.o
 
@@ -87,6 +88,7 @@ SRCS= ext2_err.c \
 	$(srcdir)/check_desc.c \
 	$(srcdir)/closefs.c \
 	$(srcdir)/crc16.c \
+	$(srcdir)/crc32.c \
 	$(srcdir)/csum.c \
 	$(srcdir)/cmp_bitmaps.c \
 	$(srcdir)/dblist.c \
@@ -236,10 +238,11 @@ tst_bitops: tst_bitops.o inline.o $(STATIC_LIBEXT2FS)
 	@$(CC) -o tst_bitops tst_bitops.o inline.o $(ALL_CFLAGS) \
 		$(STATIC_LIBEXT2FS) $(LIBCOM_ERR)
 
-tst_csum: tst_csum.o csum.o crc16.o $(STATIC_LIBEXT2FS) $(STATIC_LIBUUID)
+tst_csum: tst_csum.o csum.o crc16.o crc32.o $(STATIC_LIBEXT2FS) \
+		$(STATIC_LIBUUID)
 	@echo "	LD $@"
-	@$(CC) -o tst_csum csum.o tst_csum.o crc16.o $(STATIC_LIBEXT2FS) \
-		$(STATIC_LIBUUID) $(LIBCOM_ERR)
+	@$(CC) -o tst_csum csum.o tst_csum.o crc16.o crc32.o \
+		$(STATIC_LIBEXT2FS) $(STATIC_LIBUUID) $(LIBCOM_ERR)
 
 tst_getsectsize: tst_getsectsize.o getsectsize.o $(STATIC_LIBEXT2FS)
 	@echo "	LD $@"
@@ -384,6 +387,8 @@ cmp_bitmaps.o: $(srcdir)/cmp_bitmaps.c $(srcdir)/ext2_fs.h \
  $(srcdir)/ext2_fs.h $(srcdir)/ext3_extents.h $(top_srcdir)/lib/et/com_err.h \
  $(srcdir)/ext2_io.h $(top_builddir)/lib/ext2fs/ext2_err.h $(srcdir)/bitops.h
 crc16.o: $(srcdir)/crc16.c $(srcdir)/ext2_fs.h $(srcdir)/crc16.h \
+ $(top_builddir)/lib/ext2fs/ext2_types.h $(srcdir)/ext2fs.h $(srcdir)/ext2_fs.h
+crc32.o: $(srcdir)/crc32.c $(srcdir)/ext2_fs.h $(srcdir)/crc16.h \
  $(top_builddir)/lib/ext2fs/ext2_types.h $(srcdir)/ext2fs.h $(srcdir)/ext2_fs.h
 csum.o: $(srcdir)/csum.c $(srcdir)/ext2_fs.h \
  $(top_builddir)/lib/ext2fs/ext2_types.h $(srcdir)/ext2fs.h $(srcdir)/ext2_fs.h

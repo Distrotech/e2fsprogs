@@ -1,16 +1,17 @@
 /*
- * This testing program verifies checksumming operations
- *
- * Copyright (C) 2006, 2007 by Andreas Dilger <adilger@clusterfs.com>
- *
- * %Begin-Header%
- * This file may be redistributed under the terms of the GNU Public
- * License.
- * %End-Header%
- */
+* This testing program verifies checksumming operations
+*
+* Copyright (C) 2006, 2007 by Andreas Dilger <adilger@clusterfs.com>
+*
+* %Begin-Header%
+* This file may be redistributed under the terms of the GNU Public
+* License.
+* %End-Header%
+*/
 
 #include "ext2fs/ext2_fs.h"
 #include "ext2fs/ext2fs.h"
+#include "ext2fs/crc32.h"
 #include "ext2fs/crc16.h"
 #include "uuid/uuid.h"
 
@@ -64,28 +65,61 @@ int main(int argc, char **argv)
 						    0x4b, 0xae, 0xec, 0xdb } };
 	__u16 csum1, csum2, csum_known = 0xd3a4;
 	char data[8] = { 0x10, 0x20, 0x30, 0x40, 0xf1, 0xb2, 0xc3, 0xd4 };
-	__u16 data_crc[8] =   { 0xcc01, 0x180c, 0x1118, 0xfa10,
-				0x483a, 0x6648, 0x6726, 0x85e6 };
-	__u16 data_crc0[8] =  { 0x8cbe, 0xa80d, 0xd169, 0xde10,
-				0x481e, 0x7d48, 0x673d, 0x8ea6 };
+	__u16 data_crc16[8] =   { 0xcc01, 0x180c, 0x1118, 0xfa10,
+				  0x483a, 0x6648, 0x6726, 0x85e6 };
+	__u16 data_crc16_0[8] =  { 0x8cbe, 0xa80d, 0xd169, 0xde10,
+				   0x481e, 0x7d48, 0x673d, 0x8ea6 };
+	__u32 data_crc32[8] =  {
+				 0x4c11db70, 0x88722df3, 0xe91b93c6, 0xc8756001,
+				 0x839b9c9f, 0x4b6fef27, 0x20eb2a56, 0x7196ddd5
+			       };
+	__u32 data_crc32_0[8] = {
+				  0x21964c4, 0x88c5498e, 0x5e7feec6, 0xf71bd7a,
+				  0xc48b2703, 0x71155355, 0xa1efe310, 0x1892668c
+				};
 	int i;
 
 	for (i = 0; i < sizeof(data); i++) {
 		csum1 = crc16(0, data, i + 1);
-		printf("crc16(0): data[%d]: %04x=%04x\n", i, csum1,data_crc[i]);
-		if (csum1 != data_crc[i]) {
+		printf("crc16(0): data[%d]: %04x=%04x\n", i, csum1,
+		       data_crc16[i]);
+		if (csum1 != data_crc16[i]) {
 			printf("error: crc16(0) for data[%d] should be %04x\n",
-			       i, data_crc[i]);
+			       i, data_crc16[i]);
 			exit(1);
 		}
 	}
 
 	for (i = 0; i < sizeof(data); i++) {
 		csum1 = crc16(~0, data, i + 1);
-		printf("crc16(~0): data[%d]: %04x=%04x\n",i,csum1,data_crc0[i]);
-		if (csum1 != data_crc0[i]) {
+		printf("crc16(~0): data[%d]: %04x=%04x\n", i, csum1,
+		       data_crc16_0[i]);
+		if (csum1 != data_crc16_0[i]) {
 			printf("error: crc16(~0) for data[%d] should be %04x\n",
-			       i, data_crc0[i]);
+			       i, data_crc16_0[i]);
+			exit(1);
+		}
+	}
+	for (i = 0; i < sizeof(data); i++) {
+		__u32 csum32;
+		csum32 = crc32_be(0, data, i + 1);
+		printf("crc32(0): data[%d]: %04x=%04x\n", i, csum32,
+		       data_crc32[i]);
+		if (csum32 != data_crc32[i]) {
+			printf("error: crc32(0) for data[%d] should be %04x\n",
+			       i, data_crc32[i]);
+			exit(1);
+		}
+	}
+
+	for (i = 0; i < sizeof(data); i++) {
+		__u32 csum32;
+		csum32 = crc32_be(~0U, data, i + 1);
+		printf("crc32(~0): data[%d]: %04x=%04x\n", i, csum32,
+		       data_crc32_0[i]);
+		if (csum32 != data_crc32_0[i]) {
+			printf("error: crc32(~0) for data[%d] should be %04x\n",
+			       i, data_crc32_0[i]);
 			exit(1);
 		}
 	}

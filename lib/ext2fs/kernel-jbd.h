@@ -108,7 +108,29 @@ typedef struct journal_header_s
 	__u32		h_sequence;
 } journal_header_t;
 
+/*
+ * Checksum types.
+ */
+#define JFS_CRC32_CHKSUM   1
+#define JFS_MD5_CHKSUM     2
+#define JFS_SHA1_CHKSUM    3
 
+#define JFS_CRC32_CHKSUM_SIZE 4
+
+#define JFS_CHECKSUM_BYTES (32 / sizeof(__u32))
+/*
+ * Commit block header for storing transactional checksums:
+ */
+struct commit_header
+{
+	__u32		h_magic;
+	__u32		h_blocktype;
+	__u32		h_sequence;
+	unsigned char   h_chksum_type;
+	unsigned char   h_chksum_size;
+	unsigned char   h_padding[2];
+	__u32		h_chksum[JFS_CHECKSUM_BYTES];
+};
 /* 
  * The block tag: used to describe a single buffer in the journal 
  */
@@ -194,12 +216,17 @@ typedef struct journal_superblock_s
 	((j)->j_format_version >= 2 &&					\
 	 ((j)->j_superblock->s_feature_incompat & cpu_to_be32((mask))))
 
-#define JFS_FEATURE_INCOMPAT_REVOKE	0x00000001
+#define JFS_FEATURE_COMPAT_CHECKSUM    0x00000001
+
+#define JFS_FEATURE_INCOMPAT_REVOKE		0x00000001
+/*#define JFS_FEATURE_INCOMPAT_64BIT             0x00000002*/
+#define JFS_FEATURE_INCOMPAT_ASYNC_COMMIT	0x00000004
 
 /* Features known to this kernel version: */
-#define JFS_KNOWN_COMPAT_FEATURES	0
+#define JFS_KNOWN_COMPAT_FEATURES	JFS_FEATURE_COMPAT_CHECKSUM
 #define JFS_KNOWN_ROCOMPAT_FEATURES	0
-#define JFS_KNOWN_INCOMPAT_FEATURES	JFS_FEATURE_INCOMPAT_REVOKE
+#define JFS_KNOWN_INCOMPAT_FEATURES	(JFS_FEATURE_INCOMPAT_REVOKE| \
+					JFS_FEATURE_INCOMPAT_ASYNC_COMMIT)
 
 #ifdef __KERNEL__
 

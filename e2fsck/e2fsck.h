@@ -30,10 +30,12 @@
 #if EXT2_FLAT_INCLUDES
 #include "ext2_fs.h"
 #include "ext2fs.h"
+#include "crc32.h"
 #include "blkid.h"
 #else
 #include "ext2fs/ext2_fs.h"
 #include "ext2fs/ext2fs.h"
+#include "ext2fs/crc32.h"
 #include "blkid/blkid.h"
 #endif
 
