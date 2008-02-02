@@ -1446,6 +1446,11 @@ static struct e2fsck_problem problem_table[] = {
 	  "They @s the same!\n"),
 	  PROMPT_NONE, 0 },
 
+	/* DIR_NLINK flag not set but dirs with > 65000 subdirs found */
+	{ PR_4_FEATURE_DIR_NLINK,
+	  N_("@f has @d with > 65000 subdirs, but no DIR_NLINK flag in @S.\n"),
+          PROMPT_FIX, 0 },
+
 	/* Pass 5 errors */
 		  
 	/* Pass 5: Checking group summary information */

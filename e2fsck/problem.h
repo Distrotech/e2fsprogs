@@ -873,6 +873,10 @@ struct problem_context {
 /* Inconsistent inode count information cached */
 #define PR_4_INCONSISTENT_COUNT	0x040004
 
+/* Directory with > EXT2_LINK_MAX subdirs found but
+ * EXT4_FEATURE_RO_COMPAT_DIR_NLINK flag is not set */
+#define PR_4_FEATURE_DIR_NLINK	0x040005
+
 /*
  * Pass 5 errors
  */

@@ -101,6 +101,7 @@ void e2fsck_pass4(e2fsck_t ctx)
 	struct problem_context	pctx;
 	__u16	link_count;
 	__u32	link_counted;
+	__u32   many_subdirs = 0;
 	char	*buf = 0;
 	int	group, maxgroup;
 	
@@ -182,7 +183,20 @@ void e2fsck_pass4(e2fsck_t ctx)
 				e2fsck_write_inode(ctx, i, inode, "pass4");
 			}
 		}
+		if (link_count == 1 && link_counted > EXT2_LINK_MAX)
+			many_subdirs++;
 	}
+
+	if (many_subdirs) {
+		if (!(fs->super->s_feature_ro_compat &
+		      EXT4_FEATURE_RO_COMPAT_DIR_NLINK) &&
+		    fix_problem(ctx, PR_4_FEATURE_DIR_NLINK, &pctx)) {
+			fs->super->s_feature_ro_compat |=
+				EXT4_FEATURE_RO_COMPAT_DIR_NLINK;
+			ext2fs_mark_super_dirty(fs);
+		}
+	}
+
 	ext2fs_free_icount(ctx->inode_link_info); ctx->inode_link_info = 0;
 	ext2fs_free_icount(ctx->inode_count); ctx->inode_count = 0;
 	ext2fs_free_inode_bitmap(ctx->inode_bb_map);

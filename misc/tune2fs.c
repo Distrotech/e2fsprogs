@@ -110,7 +110,8 @@ static __u32 ok_features[3] = {
 		EXT2_FEATURE_COMPAT_DIR_INDEX,	/* Compat */
 	EXT2_FEATURE_INCOMPAT_FILETYPE,		/* Incompat */
 	EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|	/* R/O compat */
-		EXT4_FEATURE_RO_COMPAT_GDT_CSUM
+		EXT4_FEATURE_RO_COMPAT_GDT_CSUM |
+		EXT4_FEATURE_RO_COMPAT_DIR_NLINK
 };
 
 /*
@@ -298,6 +299,7 @@ static void update_feature_set(ext2_filsys fs, char *features)
 	int sparse, old_sparse, filetype, old_filetype;
 	int journal, old_journal, dxdir, old_dxdir, uninit;
 	struct ext2_super_block *sb= fs->super;
+	int dir_nlink, old_dir_nlink;
 	__u32	old_compat, old_incompat, old_ro_compat, old_uninit;
 
 	old_compat = sb->s_feature_compat;
@@ -306,6 +308,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 
 	old_sparse = sb->s_feature_ro_compat &
 		EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER;
+	old_dir_nlink = sb->s_feature_ro_compat &
+		EXT4_FEATURE_RO_COMPAT_DIR_NLINK;
 	old_filetype = sb->s_feature_incompat &
 		EXT2_FEATURE_INCOMPAT_FILETYPE;
 	old_journal = sb->s_feature_compat &
@@ -322,6 +326,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 	}
 	sparse = sb->s_feature_ro_compat &
 		EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER;
+	dir_nlink = sb->s_feature_ro_compat &
+		EXT4_FEATURE_RO_COMPAT_DIR_NLINK;
 	filetype = sb->s_feature_incompat &
 		EXT2_FEATURE_INCOMPAT_FILETYPE;
 	journal = sb->s_feature_compat &
