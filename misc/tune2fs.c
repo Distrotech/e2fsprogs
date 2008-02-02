@@ -109,7 +109,8 @@ static __u32 ok_features[3] = {
 	EXT3_FEATURE_COMPAT_HAS_JOURNAL |
 		EXT2_FEATURE_COMPAT_DIR_INDEX,	/* Compat */
 	EXT2_FEATURE_INCOMPAT_FILETYPE,		/* Incompat */
-	EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER	/* R/O compat */
+	EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|	/* R/O compat */
+		EXT4_FEATURE_RO_COMPAT_GDT_CSUM
 };
 
 /*
@@ -224,6 +225,8 @@ static int release_blocks_proc(ext2_filsys fs, blk_t *blocknr,
 	ext2fs_unmark_block_bitmap(fs->block_map,block);
 	group = ext2fs_group_of_blk(fs, block);
 	fs->group_desc[group].bg_free_blocks_count++;
+	fs->group_desc[group].bg_checksum =
+		ext2fs_group_desc_csum(fs->super, group,&fs->group_desc[group]);
 	fs->super->s_free_blocks_count++;
 	return 0;
 }
@@ -293,9 +296,9 @@ static void update_mntopts(ext2_filsys fs, char *mntopts)
 static void update_feature_set(ext2_filsys fs, char *features)
 {
 	int sparse, old_sparse, filetype, old_filetype;
-	int journal, old_journal, dxdir, old_dxdir;
+	int journal, old_journal, dxdir, old_dxdir, uninit;
 	struct ext2_super_block *sb= fs->super;
-	__u32	old_compat, old_incompat, old_ro_compat;
+	__u32	old_compat, old_incompat, old_ro_compat, old_uninit;
 
 	old_compat = sb->s_feature_compat;
 	old_ro_compat = sb->s_feature_ro_compat;
@@ -309,6 +312,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 		EXT3_FEATURE_COMPAT_HAS_JOURNAL;
 	old_dxdir = sb->s_feature_compat &
 		EXT2_FEATURE_COMPAT_DIR_INDEX;
+	old_uninit = sb->s_feature_ro_compat &
+		EXT4_FEATURE_RO_COMPAT_GDT_CSUM;
 	if (e2p_edit_feature(features, &sb->s_feature_compat,
 			     ok_features)) {
 		fprintf(stderr, _("Invalid filesystem option set: %s\n"),
@@ -323,6 +328,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 		EXT3_FEATURE_COMPAT_HAS_JOURNAL;
 	dxdir = sb->s_feature_compat &
 		EXT2_FEATURE_COMPAT_DIR_INDEX;
+	uninit = sb->s_feature_ro_compat &
+		EXT4_FEATURE_RO_COMPAT_GDT_CSUM;
 	if (old_journal && !journal) {
 		if ((mount_flags & EXT2_MF_MOUNTED) &&
 		    !(mount_flags & EXT2_MF_READONLY)) {
@@ -369,6 +376,7 @@ static void update_feature_set(ext2_filsys fs, char *features)
 	     sb->s_feature_incompat))
 		ext2fs_update_dynamic_rev(fs);
 	if ((sparse != old_sparse) ||
+	    (uninit != old_uninit) ||
 	    (filetype != old_filetype)) {
 		sb->s_state &= ~EXT2_VALID_FS;
 		printf("\n%s\n", _(please_fsck));

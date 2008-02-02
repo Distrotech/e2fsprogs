@@ -1346,6 +1346,10 @@ no_journal:
 		}
 	}
 
+	if (sb->s_feature_ro_compat & EXT4_FEATURE_RO_COMPAT_GDT_CSUM &&
+	    !(ctx->options & E2F_OPT_READONLY))
+		ext2fs_set_gdt_csum(ctx->fs);
+
 	e2fsck_write_bitmaps(ctx);
 	
 	ext2fs_close(fs);

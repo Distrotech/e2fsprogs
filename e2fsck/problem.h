@@ -197,6 +197,21 @@ struct problem_context {
 /* Superblock hint for external journal incorrect */
 #define PR_0_DIRHASH_HINT			0x000034
 
+/* Group descriptor N checksum is invalid */
+#define PR_0_GDT_CSUM				0x000035
+
+/* Group descriptor N marked uninitialized without feature set. */
+#define PR_0_GDT_UNINIT				0x000036
+
+/* Block bitmap is uninitialised but Inode bitmap in use. */
+#define PR_0_BB_UNINIT_IB_INIT			0x000037
+
+/* Group descriptor N has invalid unused inodes count. */
+#define PR_0_GDT_ITABLE_UNUSED			0x000038
+
+/* Last group block bitmap is uninitialized. */
+#define PR_0_BB_UNINIT_LAST			0x000039
+
 /*
  * Pass 1 errors
  */
@@ -736,6 +751,12 @@ struct problem_context {
 /* i_blocks_hi should be zero */
 #define PR_2_BLOCKS_HI_ZERO	0x020044
 
+/* Inode found in group where _INODE_UNINIT is set */
+#define PR_2_INOREF_BG_INO_UNINIT	0x020045
+
+/* Inode found in group unused inodes area */
+#define PR_2_INOREF_IN_UNUSED		0x020046
+
 /*
  * Pass 3 errors
  */
@@ -924,9 +945,15 @@ struct problem_context {
 
 /* Inode range not used, but marked in bitmap */
 #define PR_5_INODE_RANGE_UNUSED		0x050016
-	  
+
 /* Inode rangeused, but not marked used in bitmap */
 #define PR_5_INODE_RANGE_USED		0x050017
+
+/* Block in use but group is marked BLOCK_UNINIT */
+#define PR_5_BLOCK_UNINIT		0x050018
+
+/* Inode in use but group is marked INODE_UNINIT */
+#define PR_5_INODE_UNINIT		0x050019
 
 /*
  * Post-Pass 5 errors

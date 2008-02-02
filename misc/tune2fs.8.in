@@ -411,10 +411,18 @@ option.
 .TP
 .B sparse_super
 Limit the number of backup superblocks to save space on large filesystems.
+.TP
+.B uninit_groups
+Allow the kernel to initialize bitmaps and inode tables and keep a high
+watermark for the unused inodes in a filesystem, to reduce
+.BR e2fsck (8)
+time.  This first e2fsck run after enabling this feature will take the
+full time, but subsequent e2fsck runs will take only a fraction of the
+original time, depending on how full the file system is.
 .RE
 .IP
 After setting or clearing 
-.B sparse_super
+.BR sparse_super , " uninit_groups" ,
 and 
 .B filetype 
 filesystem features,
@@ -433,7 +441,9 @@ can be run to convert existing directories to the hashed B-tree format.
 Linux kernels before 2.0.39 and many 2.1 series kernels do not support
 the filesystems that use any of these features.
 Enabling certain filesystem features may prevent the filesystem from
-being mounted by kernels which do not support those features.
+being mounted by kernels which do not support those features.  The
+.B uninit_groups
+feature is not yet supported by any officially released kernel.
 .TP
 .BI \-r " reserved-blocks-count"
 Set the number of reserved filesystem blocks.

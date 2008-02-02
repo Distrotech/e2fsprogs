@@ -343,6 +343,7 @@ typedef struct ext2_struct_inode_scan *ext2_inode_scan;
 #define EXT2_SF_BAD_EXTRA_BYTES	0x0004
 #define EXT2_SF_SKIP_MISSING_ITABLE	0x0008
 #define EXT2_SF_DO_LAZY		0x0010
+#define EXT2_SF_DO_CSUM		0x0020
 
 /*
  * ext2fs_check_if_mounted flags
@@ -465,7 +466,8 @@ typedef struct ext2_icount *ext2_icount_t;
 #endif
 #define EXT2_LIB_FEATURE_RO_COMPAT_SUPP	(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|\
 					 EXT2_FEATURE_RO_COMPAT_LARGE_FILE|\
-					 EXT4_FEATURE_RO_COMPAT_DIR_NLINK)
+					 EXT4_FEATURE_RO_COMPAT_DIR_NLINK|\
+					 EXT4_FEATURE_RO_COMPAT_GDT_CSUM)
 
 /*
  * These features are only allowed if EXT2_FLAG_SOFTSUPP_FEATURES is passed
@@ -473,7 +475,6 @@ typedef struct ext2_icount *ext2_icount_t;
  */
 #define EXT2_LIB_SOFTSUPP_INCOMPAT	(EXT3_FEATURE_INCOMPAT_EXTENTS)
 #define EXT2_LIB_SOFTSUPP_RO_COMPAT	(EXT4_FEATURE_RO_COMPAT_HUGE_FILE|\
-					 EXT4_FEATURE_RO_COMPAT_GDT_CSUM|\
 					 EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE)
 
 /*
@@ -636,6 +637,13 @@ extern errcode_t ext2fs_compare_block_bitmap(ext2fs_block_bitmap bm1,
 					     ext2fs_block_bitmap bm2);
 extern errcode_t ext2fs_compare_inode_bitmap(ext2fs_inode_bitmap bm1,
 					     ext2fs_inode_bitmap bm2);
+
+/* csum.c */
+extern __u16 ext2fs_group_desc_csum(struct ext2_super_block *sb, __u32 group,
+				    struct ext2_group_desc *desc);
+extern int ext2fs_group_desc_csum_verify(struct ext2_super_block *sb,
+				     __u32 group, struct ext2_group_desc *desc);
+extern void ext2fs_set_gdt_csum(ext2_filsys fs);
 
 /* dblist.c */
 

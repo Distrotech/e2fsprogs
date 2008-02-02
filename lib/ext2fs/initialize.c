@@ -375,6 +375,8 @@ ipg_retry:
 		fs->group_desc[i].bg_free_inodes_count =
 			fs->super->s_inodes_per_group;
 		fs->group_desc[i].bg_used_dirs_count = 0;
+		fs->group_desc[i].bg_checksum =
+			ext2fs_group_desc_csum(fs->super, i,&fs->group_desc[i]);
 	}
 	
 	c = (char) 255;

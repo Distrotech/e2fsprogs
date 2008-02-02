@@ -33,6 +33,7 @@
 static struct ext2_super_block set_sb;
 static struct ext2_inode set_inode;
 static struct ext2_group_desc set_gd;
+static dgrp_t set_bg;
 static ext2_ino_t set_ino;
 static int array_idx;
 
@@ -54,6 +55,7 @@ static errcode_t parse_uuid(struct field_set_info *info, char *arg);
 static errcode_t parse_hashalg(struct field_set_info *info, char *arg);
 static errcode_t parse_time(struct field_set_info *info, char *arg);
 static errcode_t parse_bmap(struct field_set_info *info, char *arg);
+static errcode_t parse_gd_csum(struct field_set_info *info, char *arg);
 
 static struct field_set_info super_fields[] = {
 	{ "inodes_count", &set_sb.s_inodes_count, 4, parse_uint },
@@ -160,7 +162,7 @@ static struct field_set_info ext2_bg_fields[] = {
 	{ "flags", &set_gd.bg_flags, 2, parse_uint },
 	{ "reserved", &set_gd.bg_reserved, 2, parse_uint, FLAG_ARRAY, 2 },
 	{ "itable_unused", &set_gd.bg_itable_unused, 2, parse_uint },
-	{ "checksum", &set_gd.bg_checksum, 2, parse_uint },
+	{ "checksum", &set_gd.bg_checksum, 2, parse_gd_csum },
 	{ 0, 0, 0, 0 }
 };
 
@@ -373,6 +375,17 @@ static errcode_t parse_bmap(struct field_set_info *info, char *arg)
 	return retval;
 }
 
+static errcode_t parse_gd_csum(struct field_set_info *info, char *arg)
+{
+	__u16 *val = info->ptr;
+
+	if (strcmp(arg, "calc") == 0) {
+		*val = ext2fs_group_desc_csum(&set_sb, set_bg, &set_gd);
+		return 0;
+	}
+
+	return parse_uint(info, arg);
+}
 
 static void print_possible_fields(struct field_set_info *fields)
 {
@@ -492,7 +505,6 @@ void do_set_block_group_descriptor(int argc, char *argv[])
 		"\t\"set_block_group_descriptor -l\" will list the names of "
 		"the fields in a block group descriptor\n\twhich can be set.";
 	struct field_set_info	*ss;
-	dgrp_t			set_bg;
 	char			*end;
 
 	if ((argc == 2) && !strcmp(argv[1], "-l")) {
@@ -522,6 +534,7 @@ void do_set_block_group_descriptor(int argc, char *argv[])
 	}
 
 	set_gd = current_fs->group_desc[set_bg];
+	set_sb = *current_fs->super;
 
 	if (ss->func(ss, argv[3]) == 0) {
 		current_fs->group_desc[set_bg] = set_gd;
