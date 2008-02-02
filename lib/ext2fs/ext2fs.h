@@ -462,7 +462,8 @@ typedef struct ext2_icount *ext2_icount_t;
 					 EXT3_FEATURE_INCOMPAT_RECOVER)
 #endif
 #define EXT2_LIB_FEATURE_RO_COMPAT_SUPP	(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|\
-					 EXT2_FEATURE_RO_COMPAT_LARGE_FILE)
+					 EXT2_FEATURE_RO_COMPAT_LARGE_FILE|\
+					 EXT4_FEATURE_RO_COMPAT_DIR_NLINK)
 
 /*
  * These features are only allowed if EXT2_FLAG_SOFTSUPP_FEATURES is passed
@@ -471,7 +472,6 @@ typedef struct ext2_icount *ext2_icount_t;
 #define EXT2_LIB_SOFTSUPP_INCOMPAT	(EXT3_FEATURE_INCOMPAT_EXTENTS)
 #define EXT2_LIB_SOFTSUPP_RO_COMPAT	(EXT4_FEATURE_RO_COMPAT_HUGE_FILE|\
 					 EXT4_FEATURE_RO_COMPAT_GDT_CSUM|\
-					 EXT4_FEATURE_RO_COMPAT_DIR_NLINK|\
 					 EXT4_FEATURE_RO_COMPAT_EXTRA_ISIZE)
 
 /*
@@ -795,12 +795,20 @@ extern errcode_t ext2fs_create_icount2(ext2_filsys fs, int flags,
 extern errcode_t ext2fs_create_icount(ext2_filsys fs, int flags, 
 				      unsigned int size,
 				      ext2_icount_t *ret);
+extern errcode_t ext2fs_icount_fetch32(ext2_icount_t icount, ext2_ino_t ino,
+				       __u32 *ret);
 extern errcode_t ext2fs_icount_fetch(ext2_icount_t icount, ext2_ino_t ino,
 				     __u16 *ret);
+extern errcode_t ext2fs_icount_inc32(ext2_icount_t icount, ext2_ino_t ino,
+				     __u32 *ret, __u32 overflow);
 extern errcode_t ext2fs_icount_increment(ext2_icount_t icount, ext2_ino_t ino,
 					 __u16 *ret);
+extern errcode_t ext2fs_icount_dec32(ext2_icount_t icount, ext2_ino_t ino,
+				     __u32 *ret);
 extern errcode_t ext2fs_icount_decrement(ext2_icount_t icount, ext2_ino_t ino,
 					 __u16 *ret);
+extern errcode_t ext2fs_icount_store32(ext2_icount_t icount, ext2_ino_t ino,
+				       __u32 count);
 extern errcode_t ext2fs_icount_store(ext2_icount_t icount, ext2_ino_t ino,
 				     __u16 count);
 extern ext2_ino_t ext2fs_get_icount_size(ext2_icount_t icount);

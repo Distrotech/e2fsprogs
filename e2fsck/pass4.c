@@ -99,7 +99,8 @@ void e2fsck_pass4(e2fsck_t ctx)
 	struct resource_track	rtrack;
 #endif
 	struct problem_context	pctx;
-	__u16	link_count, link_counted;
+	__u16	link_count;
+	__u32	link_counted;
 	char	*buf = 0;
 	int	group, maxgroup;
 	
@@ -145,7 +146,7 @@ void e2fsck_pass4(e2fsck_t ctx)
 		     ext2fs_test_inode_bitmap(ctx->inode_bb_map, i)))
 			continue;
 		ext2fs_icount_fetch(ctx->inode_link_info, i, &link_count);
-		ext2fs_icount_fetch(ctx->inode_count, i, &link_counted);
+		ext2fs_icount_fetch32(ctx->inode_count, i, &link_counted);
 		if (link_counted == 0) {
 			if (!buf)
 				buf = e2fsck_allocate_memory(ctx,
@@ -156,10 +157,12 @@ void e2fsck_pass4(e2fsck_t ctx)
 				continue;
 			ext2fs_icount_fetch(ctx->inode_link_info, i,
 					    &link_count);
-			ext2fs_icount_fetch(ctx->inode_count, i,
-					    &link_counted);
+			ext2fs_icount_fetch32(ctx->inode_count, i,
+					      &link_counted);
 		}
-		if (link_counted != link_count) {
+		if (link_counted != link_count &&
+		    !(ext2fs_test_inode_bitmap(ctx->inode_dir_map, i) &&
+		      link_count == 1 && link_counted > EXT2_LINK_MAX)) {
 			e2fsck_read_inode(ctx, i, inode, "pass4");
 			pctx.ino = i;
 			pctx.inode = inode;
@@ -169,7 +172,12 @@ void e2fsck_pass4(e2fsck_t ctx)
 					    PR_4_INCONSISTENT_COUNT, &pctx);
 			}
 			pctx.num = link_counted;
-			if (fix_problem(ctx, PR_4_BAD_REF_COUNT, &pctx)) {
+			/* i_link_count was previously exceeded, but no longer
+			 * is, fix this but don't consider it an error */
+			if ((LINUX_S_ISDIR(inode->i_mode) && link_counted > 1 &&
+			     (inode->i_flags & EXT2_INDEX_FL) &&
+			     link_count == 1 && !(ctx->options & E2F_OPT_NO)) ||
+			     (fix_problem(ctx, PR_4_BAD_REF_COUNT, &pctx))) {
 				inode->i_links_count = link_counted;
 				e2fsck_write_inode(ctx, i, inode, "pass4");
 			}

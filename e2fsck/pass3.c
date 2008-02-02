@@ -580,19 +580,22 @@ errcode_t e2fsck_adjust_inode_count(e2fsck_t ctx, ext2_ino_t ino, int adj)
 #endif
 
 	if (adj == 1) {
-		ext2fs_icount_increment(ctx->inode_count, ino, 0);
+		ext2fs_icount_inc32(ctx->inode_count, ino, 0,
+				    ext2fs_test_inode_bitmap(ctx->inode_dir_map,
+							     ino) ?
+				    EXT2_LINK_MAX : ~0U);
 		if (inode.i_links_count == (__u16) ~0)
 			return 0;
 		ext2fs_icount_increment(ctx->inode_link_info, ino, 0);
 		inode.i_links_count++;
 	} else if (adj == -1) {
-		ext2fs_icount_decrement(ctx->inode_count, ino, 0);
+		ext2fs_icount_dec32(ctx->inode_count, ino, 0);
 		if (inode.i_links_count == 0)
 			return 0;
 		ext2fs_icount_decrement(ctx->inode_link_info, ino, 0);
 		inode.i_links_count--;
 	}
-	
+
 	retval = ext2fs_write_inode(fs, ino, &inode);
 	if (retval)
 		return retval;

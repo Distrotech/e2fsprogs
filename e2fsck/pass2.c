@@ -720,7 +720,7 @@ static int check_dir_block(ext2_filsys fs,
 	blk_t			block_nr = db->blk;
 	ext2_ino_t 		ino = db->ino;
 	ext2_ino_t 		subdir_parent;
-	__u16			links;
+	__u32			links;
 	struct check_dir_struct	*cd;
 	char 			*buf;
 	e2fsck_t		ctx;
@@ -1027,9 +1027,11 @@ static int check_dir_block(ext2_filsys fs,
 			dups_found++;
 		} else
 			dict_alloc_insert(&de_dict, dirent, dirent);
-		
-		ext2fs_icount_increment(ctx->inode_count, dirent->inode,
-					&links);
+
+		ext2fs_icount_inc32(ctx->inode_count, dirent->inode, &links,
+				    ext2fs_test_inode_bitmap(ctx->inode_dir_map,
+							     dirent->inode) ?
+				    EXT2_LINK_MAX : (__u32)~0U);
 		if (links > 1)
 			ctx->fs_links_count++;
 		ctx->fs_total_count++;

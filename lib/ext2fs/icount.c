@@ -43,7 +43,7 @@
 
 struct ext2_icount_el {
 	ext2_ino_t	ino;
-	__u16	count;
+	__u32	count;
 };
 
 struct ext2_icount {
@@ -398,16 +398,16 @@ static struct ext2_icount_el *get_icount_el(ext2_icount_t icount,
 }
 
 static errcode_t set_inode_count(ext2_icount_t icount, ext2_ino_t ino,
-				 __u16 count)
+				 __u32 count)
 {
-	struct ext2_icount_el 	*el;
+	struct ext2_icount_el	*el;
 	TDB_DATA key, data;
 
 	if (icount->tdb) {
 		key.dptr = (unsigned char *) &ino;
 		key.dsize = sizeof(ext2_ino_t);
 		data.dptr = (unsigned char *) &count;
-		data.dsize = sizeof(__u16);
+		data.dsize = sizeof(__u32);
 		if (count) {
 			if (tdb_store(icount->tdb, key, data, TDB_REPLACE))
 				return tdb_error(icount->tdb) +
@@ -429,9 +429,9 @@ static errcode_t set_inode_count(ext2_icount_t icount, ext2_ino_t ino,
 }
 
 static errcode_t get_inode_count(ext2_icount_t icount, ext2_ino_t ino,
-				 __u16 *count)
+				 __u32 *count)
 {
-	struct ext2_icount_el 	*el;
+	struct ext2_icount_el	*el;
 	TDB_DATA key, data;
 
 	if (icount->tdb) {
@@ -444,7 +444,7 @@ static errcode_t get_inode_count(ext2_icount_t icount, ext2_ino_t ino,
 			return tdb_error(icount->tdb) + EXT2_ET_TDB_SUCCESS;
 		}
 
-		*count = *((__u16 *) data.dptr);
+		*count = *((__u32 *) data.dptr);
 		free(data.dptr);
 		return 0;
 	}
@@ -481,7 +481,7 @@ errcode_t ext2fs_icount_validate(ext2_icount_t icount, FILE *out)
 	return ret;
 }
 
-errcode_t ext2fs_icount_fetch(ext2_icount_t icount, ext2_ino_t ino, __u16 *ret)
+errcode_t ext2fs_icount_fetch32(ext2_icount_t icount, ext2_ino_t ino, __u32 *ret)
 {
 	EXT2_CHECK_MAGIC(icount, EXT2_ET_MAGIC_ICOUNT);
 
@@ -501,10 +501,21 @@ errcode_t ext2fs_icount_fetch(ext2_icount_t icount, ext2_ino_t ino, __u16 *ret)
 	return 0;
 }
 
-errcode_t ext2fs_icount_increment(ext2_icount_t icount, ext2_ino_t ino,
-				  __u16 *ret)
+errcode_t ext2fs_icount_fetch(ext2_icount_t icount, ext2_ino_t ino, __u16 *ret)
 {
-	__u16			curr_value;
+	__u32 ret32 = ret ? *ret : 0;
+	errcode_t err;
+
+	err = ext2fs_icount_fetch32(icount, ino, &ret32);
+	*ret = (__u16)ret32;
+
+	return err;
+}
+
+errcode_t ext2fs_icount_inc32(ext2_icount_t icount, ext2_ino_t ino,
+			      __u32 *ret, __u32 overflow)
+{
+	__u32			curr_value;
 
 	EXT2_CHECK_MAGIC(icount, EXT2_ET_MAGIC_ICOUNT);
 
@@ -529,6 +540,8 @@ errcode_t ext2fs_icount_increment(ext2_icount_t icount, ext2_ino_t ino,
 		if (ext2fs_test_inode_bitmap(icount->multiple, ino)) {
 			get_inode_count(icount, ino, &curr_value);
 			curr_value++;
+			if (curr_value >= overflow)
+				curr_value = overflow + 10;
 			if (set_inode_count(icount, ino, curr_value))
 				return EXT2_ET_NO_MEMORY;
 		} else {
@@ -548,6 +561,8 @@ errcode_t ext2fs_icount_increment(ext2_icount_t icount, ext2_ino_t ino,
 		 */
 		get_inode_count(icount, ino, &curr_value);
 		curr_value++;
+		if (curr_value >= overflow)
+			curr_value = overflow + 10;
 		if (set_inode_count(icount, ino, curr_value))
 			return EXT2_ET_NO_MEMORY;
 	}
@@ -558,10 +573,23 @@ errcode_t ext2fs_icount_increment(ext2_icount_t icount, ext2_ino_t ino,
 	return 0;
 }
 
-errcode_t ext2fs_icount_decrement(ext2_icount_t icount, ext2_ino_t ino,
+errcode_t ext2fs_icount_increment(ext2_icount_t icount, ext2_ino_t ino,
 				  __u16 *ret)
 {
-	__u16			curr_value;
+	__u32 ret32 = ret ? *ret : 0;
+	errcode_t err;
+
+	err = ext2fs_icount_inc32(icount, ino, &ret32, (__u16)~0U);
+	if (ret)
+		*ret = ret32;
+
+	return err;
+}
+
+errcode_t ext2fs_icount_dec32(ext2_icount_t icount, ext2_ino_t ino,
+			      __u32 *ret)
+{
+	__u32			curr_value;
 
 	if (!ino || (ino > icount->num_inodes))
 		return EXT2_ET_INVALID_ARGUMENT;
@@ -601,8 +629,21 @@ errcode_t ext2fs_icount_decrement(ext2_icount_t icount, ext2_ino_t ino,
 	return 0;
 }
 
-errcode_t ext2fs_icount_store(ext2_icount_t icount, ext2_ino_t ino,
-			      __u16 count)
+errcode_t ext2fs_icount_decrement(ext2_icount_t icount, ext2_ino_t ino,
+				  __u16 *ret)
+{
+	__u32 ret32 = ret ? *ret : 0;
+	errcode_t err;
+
+	err = ext2fs_icount_dec32(icount, ino, &ret32);
+	if (ret)
+		*ret = ret32;
+
+	return err;
+}
+
+errcode_t ext2fs_icount_store32(ext2_icount_t icount, ext2_ino_t ino,
+				__u32 count)
 {
 	if (!ino || (ino > icount->num_inodes))
 		return EXT2_ET_INVALID_ARGUMENT;
@@ -634,6 +675,12 @@ errcode_t ext2fs_icount_store(ext2_icount_t icount, ext2_ino_t ino,
 	if (icount->multiple)
 		ext2fs_mark_inode_bitmap(icount->multiple, ino);
 	return 0;
+}
+
+errcode_t ext2fs_icount_store(ext2_icount_t icount, ext2_ino_t ino,
+			      __u16 count)
+{
+	return ext2fs_icount_store32(icount, ino, count);
 }
 
 ext2_ino_t ext2fs_get_icount_size(ext2_icount_t icount)
