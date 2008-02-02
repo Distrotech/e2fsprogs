@@ -540,14 +540,13 @@ static void parse_extended_opts(e2fsck_t ctx, const char *opts)
 				continue;
 			}
 			ea_ver = strtoul(arg, &p, 0);
-			if (*p ||
-			    ((ea_ver != 1) && (ea_ver != 2))) {
-				fprintf(stderr,
-					_("Invalid EA version.\n"));
+			if (*p == '\0' && (ea_ver == 1 || ea_ver == 2)) {
+				ctx->ext_attr_ver = ea_ver;
+			} else {
+				fprintf(stderr, _("Invalid EA version.\n"));
 				extended_usage++;
 				continue;
 			}
-			ctx->ext_attr_ver = ea_ver;
 		} else {
 			fprintf(stderr, _("Unknown extended option: %s\n"),
 				token);
@@ -561,7 +560,8 @@ static void parse_extended_opts(e2fsck_t ctx, const char *opts)
 		       "and may take an argument which\n"
 		       "is set off by an equals ('=') sign.  "
 			"Valid extended options are:\n"
-		       "\tea_ver=<ea_version (1 or 2)>\n\n"), stderr);
+		       "\tea_ver=<ea_version (1 or 2)>\n"
+		       "\n"), stderr);
 		exit(1);
 	}
 }
