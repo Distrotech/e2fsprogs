@@ -70,7 +70,7 @@ char * device_name;
 char * new_label, *new_last_mounted, *new_UUID;
 char * io_options;
 static int c_flag, C_flag, e_flag, f_flag, g_flag, i_flag, l_flag, L_flag;
-static int m_flag, M_flag, r_flag, s_flag = -1, u_flag, U_flag, T_flag;
+static int m_flag, M_flag, r_flag, s_flag = -1, u_flag, U_flag, T_flag, p_flag;
 static time_t last_check_time;
 static int print_label;
 static int max_mount_count, mount_count, mount_flags;
@@ -79,6 +79,7 @@ static double reserved_ratio;
 static unsigned long resgid, resuid;
 static unsigned short errors;
 static int open_flag;
+static unsigned int mmp_update_interval;
 static char *features_cmd;
 static char *mntopts_cmd;
 static int stride, stripe_width;
@@ -99,7 +100,8 @@ static void usage(void)
 		  "[-g group]\n"
 		  "\t[-i interval[d|m|w]] [-j] [-J journal_options]\n"
 		  "\t[-l] [-s sparse_flag] [-m reserved_blocks_percent]\n"
-		  "\t[-o [^]mount_options[,...]] [-r reserved_blocks_count]\n"
+		  "\t[-o [^]mount_options[,...]] [-p mmp_update_interval]"
+		  "[-r reserved_blocks_count]\n"
 		  "\t[-u user] [-C mount_count] [-L volume_label]\n"
 		  "\t[-M last_mounted_dir] [-O [^]feature[,...]]\n"
 		  "\t[-E extended-option[,...]] [-T last_check_time] "
@@ -110,7 +112,8 @@ static void usage(void)
 static __u32 ok_features[3] = {
 	EXT3_FEATURE_COMPAT_HAS_JOURNAL |
 		EXT2_FEATURE_COMPAT_DIR_INDEX,	/* Compat */
-	EXT2_FEATURE_INCOMPAT_FILETYPE,		/* Incompat */
+	EXT2_FEATURE_INCOMPAT_FILETYPE|		/* Incompat */
+		EXT4_FEATURE_INCOMPAT_MMP,
 	EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|	/* R/O compat */
 		EXT4_FEATURE_RO_COMPAT_GDT_CSUM |
 		EXT4_FEATURE_RO_COMPAT_DIR_NLINK
@@ -300,9 +303,11 @@ static void update_feature_set(ext2_filsys fs, char *features)
 {
 	int sparse, old_sparse, filetype, old_filetype;
 	int journal, old_journal, dxdir, old_dxdir, uninit;
+	int mmp, old_mmp;
 	struct ext2_super_block *sb= fs->super;
 	int dir_nlink, old_dir_nlink;
 	__u32	old_compat, old_incompat, old_ro_compat, old_uninit;
+	int error;
 
 	old_compat = sb->s_feature_compat;
 	old_ro_compat = sb->s_feature_ro_compat;
@@ -320,6 +325,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 		EXT2_FEATURE_COMPAT_DIR_INDEX;
 	old_uninit = sb->s_feature_ro_compat &
 		EXT4_FEATURE_RO_COMPAT_GDT_CSUM;
+	old_mmp = sb->s_feature_incompat &
+		EXT4_FEATURE_INCOMPAT_MMP;
 	if (e2p_edit_feature(features, &sb->s_feature_compat,
 			     ok_features)) {
 		fprintf(stderr, _("Invalid filesystem option set: %s\n"),
@@ -338,6 +345,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 		EXT2_FEATURE_COMPAT_DIR_INDEX;
 	uninit = sb->s_feature_ro_compat &
 		EXT4_FEATURE_RO_COMPAT_GDT_CSUM;
+	mmp = sb->s_feature_incompat &
+		EXT4_FEATURE_INCOMPAT_MMP;
 	if (old_journal && !journal) {
 		if ((mount_flags & EXT2_MF_MOUNTED) &&
 		    !(mount_flags & EXT2_MF_READONLY)) {
@@ -377,6 +386,75 @@ static void update_feature_set(ext2_filsys fs, char *features)
 			sb->s_def_hash_version = EXT2_HASH_TEA;
 		if (uuid_is_null((unsigned char *) sb->s_hash_seed))
 			uuid_generate((unsigned char *) sb->s_hash_seed);
+	}
+	if (!old_mmp && mmp) {
+		if ((mount_flags & EXT2_MF_MOUNTED) ||
+		    (mount_flags & EXT2_MF_READONLY)) {
+			fputs(_("The multiple mount protection feature can't \n"
+				"be set if the filesystem is mounted or \n"
+				"read-only.\n"), stderr);
+			exit(1);
+		}
+
+		error = ext2fs_enable_mmp(fs);
+		if (error) {
+			fputs(_("\nError while enabling multiple mount "
+				"protection feature."), stderr);
+			exit(1);
+		}
+
+		printf(_("Multiple mount protection has been enabled. The MMP "
+			 "update interval has been set to %d seconds.\n"),
+		       sb->s_mmp_update_interval);
+	}
+
+	if (old_mmp && !mmp) {
+		blk_t mmp_block;
+		struct mmp_struct *mmp_s;
+		char *buf;
+
+		if (mount_flags & EXT2_MF_READONLY) {
+			fputs(_("The multiple mount protection feature cannot\n"
+				"be disabled if the filesystem is readonly.\n"),
+				stderr);
+			exit(1);
+		}
+
+		error = ext2fs_read_bitmaps(fs);
+		if (error) {
+			fputs(_("Error while reading bitmaps\n"), stderr);
+			exit(1);
+		}
+
+		mmp_block = sb->s_mmp_block;
+
+		error = ext2fs_get_mem(fs->blocksize, &buf);
+		if (error) {
+			fputs(_("Error allocating memory.\n"), stderr);
+			exit(1);
+		}
+
+		mmp_s = (struct mmp_struct *) buf;
+		error = ext2fs_read_mmp(fs, mmp_block, buf);
+		if (error) {
+			if (error == EXT2_ET_MMP_MAGIC_INVALID)
+				printf(_("Magic number in MMP block does not "
+					 "match. expected: %x, actual: %x\n"),
+					 EXT2_MMP_MAGIC, mmp_s->mmp_magic);
+			else
+				com_err (program_name, error,
+	 				 _("while reading MMP block."));
+			goto mmp_error;
+		}
+
+		ext2fs_unmark_block_bitmap(fs->block_map, mmp_block);
+		ext2fs_mark_bb_dirty(fs);
+
+mmp_error:
+		sb->s_mmp_block = 0;
+		sb->s_mmp_update_interval = 0;
+		if (buf)
+			ext2fs_free_mem(&buf);
 	}
 
 	if (sb->s_rev_level == EXT2_GOOD_OLD_REV &&
@@ -535,7 +613,7 @@ static void parse_tune2fs_options(int argc, char **argv)
 	open_flag = EXT2_FLAG_SOFTSUPP_FEATURES;
 
 	printf("tune2fs %s (%s)\n", E2FSPROGS_VERSION, E2FSPROGS_DATE);
-	while ((c = getopt(argc, argv, "c:e:fg:i:jlm:o:r:s:u:C:E:J:L:M:O:T:U:")) != EOF)
+	while ((c = getopt(argc, argv, "c:e:fg:i:jlm:o:p:r:s:u:C:E:J:L:M:O:T:U:")) != EOF)
 		switch (c)
 		{
 			case 'c':
@@ -688,6 +766,26 @@ static void parse_tune2fs_options(int argc, char **argv)
 					usage();
 				}
 				features_cmd = optarg;
+				open_flag = EXT2_FLAG_RW;
+				break;
+			case 'p':
+				mmp_update_interval = strtol (optarg, &tmp, 0);
+				if (*tmp && mmp_update_interval < 0) {
+					com_err (program_name, 0, _("invalid "
+						 "mmp update interval"));
+					usage();
+				}
+				if (mmp_update_interval == 0)
+					mmp_update_interval = EXT2_MMP_UPDATE_INTERVAL;
+				if (mmp_update_interval > EXT2_MMP_UPDATE_INTERVAL) {
+					com_err (program_name, 0,
+						 _("MMP update interval of %s "
+						   "seconds may be dangerous "
+						   "under high load. Consider "
+						   "decreasing it."),
+						 optarg);
+				}
+				p_flag = 1;
 				open_flag = EXT2_FLAG_RW;
 				break;
 			case 'r':
@@ -892,6 +990,9 @@ int main (int argc, char ** argv)
 #else
 	io_ptr = unix_io_manager;
 #endif
+	if (open_flag == EXT2_FLAG_RW && f_flag)
+		open_flag |= EXT2_FLAG_SKIP_MMP;
+
 	retval = ext2fs_open2(device_name, io_options, open_flag, 
 			      0, 0, io_ptr, &fs);
         if (retval) {
@@ -959,6 +1060,12 @@ int main (int argc, char ** argv)
 		ext2fs_mark_super_dirty(fs);
 		printf (_("Setting reserved blocks percentage to %g%% (%u blocks)\n"),
 			reserved_ratio, sb->s_r_blocks_count);
+	}
+	if (p_flag) {
+		sb->s_mmp_update_interval = mmp_update_interval;
+		ext2fs_mark_super_dirty(fs);
+		printf (_("Setting multiple mount protection update interval to "
+			  "%lu seconds\n"), mmp_update_interval);
 	}
 	if (r_flag) {
 		if (reserved_blocks >= sb->s_blocks_count/2) {

@@ -442,6 +442,11 @@ Setting the filesystem feature is equivalent to using the
 .B \-j
 option.
 .TP
+.B mmp
+Enable or disable multiple mount protection(MMP) feature. MMP helps to protect
+the filesystem from being multiply mounted and is useful in shared storage
+environment.
+.TP
 .B sparse_super
 Limit the number of backup superblocks to save space on large filesystems.
 .TP
@@ -477,6 +482,9 @@ Enabling certain filesystem features may prevent the filesystem from
 being mounted by kernels which do not support those features.  The
 .B uninit_groups
 feature is not yet supported by any officially released kernel.
+.TP
+.BI \-p " mmp_check_interval"
+Set the desired MMP check interval in seconds. It is 5 seconds by default.
 .TP
 .BI \-r " reserved-blocks-count"
 Set the number of reserved filesystem blocks.

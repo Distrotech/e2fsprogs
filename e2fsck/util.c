@@ -577,3 +577,61 @@ errcode_t e2fsck_zero_blocks(ext2_filsys fs, blk_t blk, int num,
 	}
 	return 0;
 }
+
+void dump_mmp_msg(struct mmp_struct *mmp, const char *msg)
+{
+	printf("MMP check failed: %s\n", msg);
+	printf("MMP failure info: last update time: %llu, "
+	       "last update node: %s, last update device: %s\n",
+	       (long long)mmp->mmp_time, mmp->mmp_nodename, mmp->mmp_bdevname);
+}
+
+#define EXT2_MIN_MMP_UPDATE_INTERVAL 60
+
+errcode_t e2fsck_mmp_update(ext2_filsys fs)
+{
+	blk_t mmp_blk = fs->super->s_mmp_block;
+	char *buf = fs->mmp_buf, *buf_cmp;
+	struct mmp_struct *mmp, *mmp_cmp;
+	struct timeval tv;
+	errcode_t retval;
+
+	if (!(fs->super->s_feature_incompat & EXT4_FEATURE_INCOMPAT_MMP) ||
+	    !(fs->flags & EXT2_FLAG_RW) || (fs->flags & EXT2_FLAG_SKIP_MMP))
+		return 0;
+
+	gettimeofday(&tv, 0);
+	if (tv.tv_sec - fs->mmp_last_written < EXT2_MIN_MMP_UPDATE_INTERVAL)
+		return 0;
+
+	retval = ext2fs_get_mem(fs->blocksize, &buf_cmp);
+	if (retval)
+		goto mmp_error;
+
+	retval = ext2fs_read_mmp(fs, mmp_blk, buf_cmp);
+	if (retval)
+		goto mmp_error;
+
+	mmp = (struct mmp_struct *) buf;
+	mmp_cmp = (struct mmp_struct *) buf_cmp;
+
+	if (memcmp(mmp, mmp_cmp, sizeof(struct mmp_struct))) {
+		dump_mmp_msg(mmp_cmp, _("\n UNEXPECTED INCONSISTENCY: "
+			     "Unexpected MMP structure read from disk.\n"
+			     "It seems the filesystem is being modified while "
+			     "fsck is running.\n"));
+		retval = EXT2_ET_MMP_FSCK_ABORT;
+		goto mmp_error;
+	}
+
+	mmp->mmp_time = tv.tv_sec;
+	fs->mmp_last_written = tv.tv_sec;
+	mmp->mmp_seq = EXT2_MMP_SEQ_FSCK;
+	retval = ext2fs_write_mmp(fs, mmp_blk, buf);
+
+mmp_error:
+	if (buf_cmp)
+		ext2fs_free_mem(&buf_cmp);
+
+	return retval;
+}

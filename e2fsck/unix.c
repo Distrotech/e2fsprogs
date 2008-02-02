@@ -1036,6 +1036,23 @@ restart:
 			       "to do a read-only\n"
 			       "check of the device.\n"));
 #endif
+		else if (retval == EXT2_ET_MMP_BAD_BLOCK) {
+			if (fix_problem(ctx, PR_0_MMP_INVALID_BLK, &pctx)) {
+				fs->super->s_mmp_block = 0;
+				ext2fs_mark_super_dirty(fs);
+			}
+		}
+		else if (retval == EXT2_ET_MMP_FAILED) {
+			dump_mmp_msg((struct mmp_struct *)fs->mmp_buf,
+				     _("Device is already active on another node."));
+		}
+		else if (retval == EXT2_ET_MMP_FSCK_ON) {
+			dump_mmp_msg((struct mmp_struct *)fs->mmp_buf,
+				     _("It seems as if e2fsck is running on the "
+				     "filesystem.\nIf you are sure that e2fsck is "
+				     "not running then use \"tune2fs -O ^mmp {device}\" "
+				     "followed by \"tune2fs -O mmp {device}\""));
+		}
 		else
 			fix_problem(ctx, PR_0_SB_CORRUPT, &pctx);
 		fatal_error(ctx, 0);

@@ -362,11 +362,62 @@ errout:
 	return retval;
 }
 
+errcode_t write_mmp_clean(ext2_filsys fs)
+{
+	blk_t mmp_blk = fs->super->s_mmp_block;
+	char *buf = fs->mmp_buf, *buf_cmp;
+	struct mmp_struct *mmp, *mmp_cmp;
+	errcode_t retval;
+
+	retval = ext2fs_get_mem(fs->blocksize, &buf_cmp);
+	if (retval)
+		goto mmp_error;
+
+	retval = ext2fs_read_mmp(fs, mmp_blk, buf_cmp);
+	if (retval)
+		goto mmp_error;
+	mmp_cmp = (struct mmp_struct *) buf_cmp;
+
+	/*
+	 * This is important since we may come here just after when MMP feature
+	 * is set and fs->mmp_buf is NULL
+	 */
+	if (!buf)
+		goto check_skipped;
+
+	/*
+	 * Make sure that the MMP block is not changed.
+	 */
+	mmp = (struct mmp_struct *) buf;
+	if (memcmp(mmp, mmp_cmp, sizeof(struct mmp_struct)))
+		return EXT2_ET_MMP_FSCK_ABORT;
+
+check_skipped:
+	mmp_cmp->mmp_seq = EXT2_MMP_SEQ_CLEAN;
+	retval = ext2fs_write_mmp(fs, mmp_blk, buf_cmp);
+
+mmp_error:
+	if (buf)
+		ext2fs_free_mem(&buf);
+	if (buf_cmp)
+		ext2fs_free_mem(&buf_cmp);
+
+	return retval;
+}
+
+
 errcode_t ext2fs_close(ext2_filsys fs)
 {
 	errcode_t	retval;
 	
 	EXT2_CHECK_MAGIC(fs, EXT2_ET_MAGIC_EXT2FS_FILSYS);
+
+	if ((fs->super->s_feature_incompat & EXT4_FEATURE_INCOMPAT_MMP) &&
+	    (fs->flags & EXT2_FLAG_RW) && !(fs->flags & EXT2_FLAG_SKIP_MMP)) {
+		retval = write_mmp_clean(fs);
+		if (retval)
+			return retval;
+	}
 
 	if (fs->flags & EXT2_FLAG_DIRTY) {
 		retval = ext2fs_flush(fs);

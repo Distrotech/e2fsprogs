@@ -352,6 +352,12 @@ _INLINE_ __u32 ext2fs_swab32(__u32 val)
 		((val<<8)&0xFF0000) | (val<<24));
 }
 
+_INLINE_ __u64 ext2fs_swab64(__u64 val)
+{
+	return (ext2fs_swab32(val >> 32) |
+		(((__u64)ext2fs_swab32(val & 0xFFFFFFFFUL)) << 32));
+}
+
 #endif /* !_EXT2_HAVE_ASM_SWAB */
 
 #if !defined(_EXT2_HAVE_ASM_FINDBIT_)

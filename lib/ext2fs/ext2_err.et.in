@@ -362,5 +362,25 @@ ec	EXT2_ET_EA_NAME_NOT_FOUND,
 ec	EXT2_ET_EA_NAME_EXISTS,
 	"Extended attribute name already exists"
 
+ec	EXT2_ET_MMP_MAGIC_INVALID,
+	"MMP: Invalid magic number in MMP block"
+
+ec	EXT2_ET_MMP_FAILED,
+	"MMP: Device already active on another node"
+
+ec	EXT2_ET_MMP_FSCK_ON,
+	"MMP: Seems as if fsck is already being run on the filesystem."
+
+ec	EXT2_ET_MMP_BAD_BLOCK,
+	"MMP: MMP block number beyond filesystem range."
+
+ec	EXT2_ET_MMP_UNKNOWN_SEQ,
+	"MMP: MMP sequence is beyond EXT2_MMP_SEQ_MAX. This filesystem "
+	"seems to be undergoing an unknown operation."
+
+ec	EXT2_ET_MMP_FSCK_ABORT,
+	"MMP: Expected sequence not found. Filesystem may be mounted while "
+	"fsck was running"
+
 	end
 

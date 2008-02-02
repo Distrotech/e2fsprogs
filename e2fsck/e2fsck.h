@@ -521,6 +521,8 @@ extern void mtrace_print(char *mesg);
 extern blk_t get_backup_sb(e2fsck_t ctx, ext2_filsys fs,
 			   const char *name, io_manager manager);
 extern int ext2_file_type(unsigned int mode);
+errcode_t e2fsck_mmp_update(ext2_filsys fs);
+void dump_mmp_msg(struct mmp_struct *mmp, const char *msg);
 
 /* unix.c */
 extern void e2fsck_clear_progbar(e2fsck_t ctx);

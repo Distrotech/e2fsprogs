@@ -222,6 +222,9 @@ struct problem_context {
 #define PR_0_CLEAR_EXTRA_ISIZE			0x00003C
 
 
+/* Superblock has invalid MMP block. */
+#define PR_0_MMP_INVALID_BLK			0x00003A
+
 /*
  * Pass 1 errors
  */

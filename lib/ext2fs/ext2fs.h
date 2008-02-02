@@ -190,6 +190,7 @@ typedef struct ext2_file *ext2_file_t;
 #define EXT2_FLAG_IMAGE_FILE		0x2000
 #define EXT2_FLAG_EXCLUSIVE		0x4000
 #define EXT2_FLAG_SOFTSUPP_FEATURES	0x8000
+#define EXT2_FLAG_SKIP_MMP		0x10000
 
 /*
  * Special flag in the ext2 inode i_flag field that means that this is
@@ -203,6 +204,15 @@ typedef struct ext2_file *ext2_file_t;
  * EXT2_MKJOURNAL_V1_SUPER	Make a (deprecated) V1 journal superblock
  */
 #define EXT2_MKJOURNAL_V1_SUPER	0x0000001
+
+/*
+ * The timestamp in the MMP structure will be updated by e2fsck at some
+ * arbitary intervals (start of passes, after every EXT2_MMP_INODE_INTERVAL
+ * inodes in pass1 and pass1b).  There is no guarantee that e2fsck is updating
+ * the MMP block in a timely manner, and the updates it does are purely for
+ * the convenience of the sysadmin and not for automatic validation.
+ */
+#define EXT2_MMP_INODE_INTERVAL 20000
 
 struct struct_ext2_filsys {
 	errcode_t			magic;
@@ -247,6 +257,15 @@ struct struct_ext2_filsys {
 	 */
 	struct ext2_inode_cache		*icache;
 	io_channel			image_io;
+
+	/*
+	 * Buffer for Multiple mount protection(MMP) block.
+	 */
+	char *mmp_buf;
+	/*
+	 * Time at which e2fsck last updated the MMP block.
+	 */
+	long mmp_last_written;
 };
 
 #if EXT2_FLAT_INCLUDES
@@ -462,13 +481,15 @@ typedef struct ext2_icount *ext2_icount_t;
 					 EXT3_FEATURE_INCOMPAT_JOURNAL_DEV|\
 					 EXT2_FEATURE_INCOMPAT_META_BG|\
 					 EXT3_FEATURE_INCOMPAT_EXTENTS|\
-					 EXT3_FEATURE_INCOMPAT_RECOVER)
+					 EXT3_FEATURE_INCOMPAT_RECOVER|\
+					 EXT4_FEATURE_INCOMPAT_MMP)
 #else
 #define EXT2_LIB_FEATURE_INCOMPAT_SUPP	(EXT2_FEATURE_INCOMPAT_FILETYPE|\
 					 EXT3_FEATURE_INCOMPAT_JOURNAL_DEV|\
 					 EXT2_FEATURE_INCOMPAT_META_BG|\
 					 EXT3_FEATURE_INCOMPAT_EXTENTS|\
-					 EXT3_FEATURE_INCOMPAT_RECOVER)
+					 EXT3_FEATURE_INCOMPAT_RECOVER|\
+					 EXT4_FEATURE_INCOMPAT_MMP)
 #endif
 #define EXT2_LIB_FEATURE_RO_COMPAT_SUPP	(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|\
 					 EXT2_FEATURE_RO_COMPAT_LARGE_FILE|\
@@ -964,6 +985,12 @@ errcode_t ext2fs_link(ext2_filsys fs, ext2_ino_t dir, const char *name,
 errcode_t ext2fs_unlink(ext2_filsys fs, ext2_ino_t dir, const char *name,
 			ext2_ino_t ino, int flags);
 
+/* mmp.c */
+errcode_t ext2fs_read_mmp(ext2_filsys fs, blk_t mmp_blk, char *buf);
+errcode_t ext2fs_write_mmp(ext2_filsys fs, blk_t mmp_blk, char *buf);
+errcode_t ext2fs_enable_mmp(ext2_filsys fs);
+long int ext2fs_mmp_new_seq();
+
 /* read_bb.c */
 extern errcode_t ext2fs_read_bb_inode(ext2_filsys fs,
 				      ext2_badblocks_list *bb_list);
@@ -1012,6 +1039,7 @@ extern void ext2fs_swap_inode(ext2_filsys fs,struct ext2_inode *t,
 extern void ext2fs_swap_extent_header(struct ext3_extent_header *eh);
 extern void ext2fs_swap_extent_index(struct ext3_extent_idx *ix);
 extern void ext2fs_swap_extent(struct ext3_extent *ex);
+extern void ext2fs_swap_mmp(struct mmp_struct *mmp);
 
 /* valid_blk.c */
 extern int ext2fs_inode_has_valid_blocks(struct ext2_inode *inode);

@@ -921,7 +921,8 @@ static __u32 ok_features[3] = {
 		EXT2_FEATURE_COMPAT_EXT_ATTR,	/* Compat */
 	EXT2_FEATURE_INCOMPAT_FILETYPE|		/* Incompat */
 		EXT3_FEATURE_INCOMPAT_JOURNAL_DEV|
-		EXT2_FEATURE_INCOMPAT_META_BG,
+		EXT2_FEATURE_INCOMPAT_META_BG|
+		EXT4_FEATURE_INCOMPAT_MMP,
 	EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|	/* R/O compat */
 		EXT4_FEATURE_RO_COMPAT_GDT_CSUM
 };
@@ -1802,8 +1803,21 @@ int main (int argc, char *argv[])
 	}
 no_journal:
 
-	if (!super_only)
+	if (!super_only) {
 		ext2fs_set_gdt_csum(fs);
+		if (fs->super->s_feature_incompat & EXT4_FEATURE_INCOMPAT_MMP) {
+			retval = ext2fs_enable_mmp(fs);
+			if (retval) {
+				fprintf(stderr, _("\nError while enabling "
+					"multiple mount protection feature."));
+				exit(1);
+			}
+			printf(_("Multiple mount protection has been enabled. "
+				 "The MMP update interval has been set to "
+				 "%d seconds.\n"),
+				 fs->super->s_mmp_update_interval);
+		}
+	}
 	if (!quiet)
 		printf(_("Writing superblocks and "
 		       "filesystem accounting information: "));

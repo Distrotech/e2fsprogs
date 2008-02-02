@@ -272,6 +272,13 @@ static void pass1b(e2fsck_t ctx, char *block_buf)
 	pb.pctx = &pctx;
 	pctx.str = "pass1b";
 	while (1) {
+		if (ino % EXT2_MMP_INODE_INTERVAL == 0) {
+			errcode_t error;
+
+			error = e2fsck_mmp_update(fs);
+			if (error)
+				fatal_error(ctx, 0);
+		}
 		pctx.errcode = ext2fs_get_next_inode(scan, &ino, &inode);
 		if (pctx.errcode == EXT2_ET_BAD_BLOCK_IN_INODE_TABLE)
 			continue;

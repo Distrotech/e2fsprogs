@@ -22,6 +22,9 @@
 #if HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
 
 #include "ext2_fs.h"
 
@@ -68,6 +71,97 @@ errcode_t ext2fs_open(const char *name, int flags, int superblock,
 }
 
 /*
+ * Make sure that the fs is not mounted or being fsck'ed while opening the fs.
+ */
+int ext2fs_multiple_mount_protect(ext2_filsys fs)
+{
+	blk_t mmp_blk = fs->super->s_mmp_block;
+	char *buf;
+	struct mmp_struct *mmp_s;
+	unsigned seq;
+	unsigned int mmp_check_interval;
+	errcode_t retval = 0;
+
+	retval = ext2fs_get_mem(fs->blocksize, &fs->mmp_buf);
+	if (retval)
+		goto mmp_error;
+	buf = fs->mmp_buf;
+
+	retval = ext2fs_read_mmp(fs, mmp_blk, buf);
+	if (retval)
+		goto mmp_error;
+
+	mmp_s = (struct mmp_struct *) buf;
+
+	mmp_check_interval = fs->super->s_mmp_update_interval;
+	if (mmp_check_interval < EXT2_MMP_MIN_CHECK_INTERVAL)
+		mmp_check_interval = EXT2_MMP_MIN_CHECK_INTERVAL;
+
+	/*
+	 * If check_interval in MMP block is larger, use that instead of
+	 * check_interval from the superblock.
+	 */
+	if (mmp_s->mmp_check_interval > mmp_check_interval)
+		mmp_check_interval = mmp_s->mmp_check_interval;
+
+
+	seq = mmp_s->mmp_seq;
+	if (seq == EXT2_MMP_SEQ_CLEAN)
+		goto clean_seq;
+	if (seq == EXT2_MMP_SEQ_FSCK) {
+		retval = EXT2_ET_MMP_FSCK_ON;
+		goto mmp_error;
+	}
+
+	if (seq > EXT2_MMP_SEQ_FSCK) {
+		retval = EXT2_ET_MMP_UNKNOWN_SEQ;
+		goto mmp_error;
+	}
+
+	sleep(2 * mmp_check_interval + 1);
+
+	retval = ext2fs_read_mmp(fs, mmp_blk, buf);
+	if (retval)
+		goto mmp_error;
+
+	if (seq != mmp_s->mmp_seq) {
+		retval = EXT2_ET_MMP_FAILED;
+		goto mmp_error;
+	}
+
+clean_seq:
+	mmp_s->mmp_seq = seq = ext2fs_mmp_new_seq();
+
+	retval = ext2fs_write_mmp(fs, mmp_blk, buf);
+	if (retval)
+		goto mmp_error;
+
+	sleep(2 * mmp_check_interval + 1);
+
+	retval = ext2fs_read_mmp(fs, mmp_blk, buf);
+	if (retval)
+		goto mmp_error;
+
+	if (seq != mmp_s->mmp_seq) {
+		retval = EXT2_ET_MMP_FAILED;
+		goto mmp_error;
+	}
+
+	mmp_s->mmp_seq = EXT2_MMP_SEQ_FSCK;
+	retval = ext2fs_write_mmp(fs, mmp_blk, buf);
+	if (retval)
+		goto mmp_error;
+
+	return 0;
+
+mmp_error:
+	if (buf)
+		ext2fs_free_mem(&buf);
+
+	return retval;
+}
+
+/*
  *  Note: if superblock is non-zero, block-size must also be non-zero.
  * 	Superblock and block_size can be zero to use the default size.
  *
@@ -77,6 +171,7 @@ errcode_t ext2fs_open(const char *name, int flags, int superblock,
  * 	EXT2_FLAG_FORCE - Open the filesystem even if some of the
  *				features aren't supported.
  *	EXT2_FLAG_JOURNAL_DEV_OK - Open an ext3 journal device
+ *	EXT2_FLAG_SKIP_MMP - Open without multi-mount protection check.
  */
 errcode_t ext2fs_open2(const char *name, const char *io_options,
 		       int flags, int superblock,
@@ -322,6 +417,15 @@ errcode_t ext2fs_open2(const char *name, const char *io_options,
 	}
 
 	*ret_fs = fs;
+
+	fs->mmp_buf = NULL;
+	if ((fs->super->s_feature_incompat & EXT4_FEATURE_INCOMPAT_MMP) &&
+	    (flags & EXT2_FLAG_RW) && !(flags & EXT2_FLAG_SKIP_MMP)) {
+		retval = ext2fs_multiple_mount_protect(fs);
+		if (retval)
+			goto cleanup;
+	}
+
 	return 0;
 cleanup:
 	ext2fs_free(fs);
