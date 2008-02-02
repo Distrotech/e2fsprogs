@@ -1773,6 +1773,44 @@ void do_set_current_time(int argc, char *argv[])
 	}
 }
 
+void do_supported_features(int argc, char *argv[])
+{
+        FILE	*out = stdout;
+        int	i, j, ret;
+        __u32	supp[3] = { EXT2_LIB_FEATURE_COMPAT_SUPP,
+			    EXT2_LIB_FEATURE_INCOMPAT_SUPP,
+			    EXT2_LIB_FEATURE_RO_COMPAT_SUPP };
+	__u32	m;
+	int compat;
+	unsigned int feature_flag;
+
+	if (argc >= 1) {
+		ret = e2p_string2feature(argv[1], &compat, &feature_flag);
+		if (ret)
+			goto err;
+
+		if (!(supp[compat] & feature_flag))
+			goto err;
+
+		fprintf(out, "Supported feature: %s\n", argv[1]);
+	} else {
+		fprintf(out, "Supported features:");
+	        for (i = 0; i < 3; i++) {
+		        for (j = 0, m = 1; j < 32; j++, m <<= 1) {
+			        if (supp[i] & m)
+        			        fprintf(out, " %s",
+						e2p_feature2string(i, m));
+	        	}
+		}
+	        fprintf(out, "\n");
+	}
+
+	return;
+
+err:
+	com_err(argv[0], 0, "Unknown feature: %s\n", argv[1]);
+}
+
 static int source_file(const char *cmd_file, int sci_idx)
 {
 	FILE		*f;
