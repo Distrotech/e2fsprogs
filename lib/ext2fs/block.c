@@ -17,24 +17,17 @@
 
 #include "ext2_fs.h"
 #include "ext2fs.h"
+#include "block.h"
 
-struct block_context {
-	ext2_filsys	fs;
-	int (*func)(ext2_filsys	fs,
-		    blk_t	*blocknr,
-		    e2_blkcnt_t	bcount,
-		    blk_t	ref_blk,
-		    int		ref_offset,
-		    void	*priv_data);
-	e2_blkcnt_t	bcount;
-	int		bsize;
-	int		flags;
-	errcode_t	errcode;
-	char	*ind_buf;
-	char	*dind_buf;
-	char	*tind_buf;
-	void	*priv_data;
-};
+#ifdef EXT_DEBUG
+void ext_show_inode(struct ext2_inode *inode, ext2_ino_t ino)
+{
+	printf("inode: %u blocks: %u\n",
+	       ino, inode->i_blocks);
+}
+#else
+#define ext_show_inode(inode, ino) do { } while (0)
+#endif
 
 static int block_iterate_ind(blk_t *ind_block, blk_t ref_block,
 			     int ref_offset, struct block_context *ctx)
@@ -276,7 +269,6 @@ errcode_t ext2fs_block_iterate2(ext2_filsys fs,
 				void *priv_data)
 {
 	int	i;
-	int	got_inode = 0;
 	int	ret = 0;
 	blk_t	blocks[EXT2_N_BLOCKS];	/* directory data blocks */
 	struct ext2_inode inode;
@@ -286,19 +278,20 @@ errcode_t ext2fs_block_iterate2(ext2_filsys fs,
 
 	EXT2_CHECK_MAGIC(fs, EXT2_ET_MAGIC_EXT2FS_FILSYS);
 
+	ctx.errcode = ext2fs_read_inode(fs, ino, &inode);
+	if (ctx.errcode)
+		return ctx.errcode;
+
 	/*
 	 * Check to see if we need to limit large files
 	 */
 	if (flags & BLOCK_FLAG_NO_LARGE) {
-		ctx.errcode = ext2fs_read_inode(fs, ino, &inode);
-		if (ctx.errcode)
-			return ctx.errcode;
-		got_inode = 1;
 		if (!LINUX_S_ISDIR(inode.i_mode) &&
 		    (inode.i_size_high != 0))
 			return EXT2_ET_FILE_TOO_BIG;
 	}
 
+	/* The in-memory inode may have been changed by e2fsck */
 	retval = ext2fs_get_blocks(fs, ino, blocks);
 	if (retval)
 		return retval;
@@ -325,10 +318,6 @@ errcode_t ext2fs_block_iterate2(ext2_filsys fs,
 	 */
 	if ((fs->super->s_creator_os == EXT2_OS_HURD) &&
 	    !(flags & BLOCK_FLAG_DATA_ONLY)) {
-		ctx.errcode = ext2fs_read_inode(fs, ino, &inode);
-		if (ctx.errcode)
-			goto abort_exit;
-		got_inode = 1;
 		if (inode.osd1.hurd1.h_i_translator) {
 			ret |= (*ctx.func)(fs,
 					   &inode.osd1.hurd1.h_i_translator,
@@ -338,7 +327,16 @@ errcode_t ext2fs_block_iterate2(ext2_filsys fs,
 				goto abort_exit;
 		}
 	}
-	
+
+	/* Iterate over normal data blocks with extents.
+	 * We can't do any fixing here because this gets called by other
+	 * callers than e2fsck_pass1->check_blocks(). */
+	if (inode.i_flags & EXT4_EXTENTS_FL) {
+		ext_show_inode(&inode, ino);
+		ret |= block_iterate_extents(blocks, sizeof(blocks), 0, 0,&ctx);
+		goto abort_exit;
+	}
+
 	/*
 	 * Iterate over normal data blocks
 	 */
@@ -373,11 +371,6 @@ errcode_t ext2fs_block_iterate2(ext2_filsys fs,
 
 abort_exit:
 	if (ret & BLOCK_CHANGED) {
-		if (!got_inode) {
-			retval = ext2fs_read_inode(fs, ino, &inode);
-			if (retval)
-				return retval;
-		}
 		for (i=0; i < EXT2_N_BLOCKS; i++)
 			inode.i_block[i] = blocks[i];
 		retval = ext2fs_write_inode(fs, ino, &inode);

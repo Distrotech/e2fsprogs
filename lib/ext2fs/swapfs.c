@@ -142,11 +142,33 @@ void ext2fs_swap_ext_attr(char *to, char *from, int bufsize, int has_header)
 	}
 }
 
+void ext2fs_swap_extent_header(struct ext3_extent_header *eh) {
+	eh->eh_magic = ext2fs_swab16(eh->eh_magic);
+	eh->eh_entries = ext2fs_swab16(eh->eh_entries);
+	eh->eh_max = ext2fs_swab16(eh->eh_max);
+	eh->eh_depth = ext2fs_swab16(eh->eh_depth);
+	eh->eh_generation = ext2fs_swab32(eh->eh_generation);
+}
+
+void ext2fs_swap_extent_index(struct ext3_extent_idx *ix) {
+	ix->ei_block = ext2fs_swab32(ix->ei_block);
+	ix->ei_leaf = ext2fs_swab32(ix->ei_leaf);
+	ix->ei_leaf_hi = ext2fs_swab16(ix->ei_leaf_hi);
+	ix->ei_unused = ext2fs_swab16(ix->ei_unused);
+}
+
+void ext2fs_swap_extent(struct ext3_extent *ex) {
+	ex->ee_block = ext2fs_swab32(ex->ee_block);
+	ex->ee_len = ext2fs_swab16(ex->ee_len);
+	ex->ee_start_hi =ext2fs_swab16(ex->ee_start_hi);
+	ex->ee_start = ext2fs_swab32(ex->ee_start);
+}
+
 void ext2fs_swap_inode_full(ext2_filsys fs, struct ext2_inode_large *t,
 			    struct ext2_inode_large *f, int hostorder,
 			    int bufsize)
 {
-	unsigned i, has_data_blocks, extra_isize;
+	unsigned i, has_data_blocks, extra_isize, has_extents;
 	int islnk = 0;
 	__u32 *eaf, *eat;
 
@@ -164,18 +186,46 @@ void ext2fs_swap_inode_full(ext2_filsys fs, struct ext2_inode_large *t,
 	t->i_gid = ext2fs_swab16(f->i_gid);
 	t->i_links_count = ext2fs_swab16(f->i_links_count);
 	t->i_file_acl = ext2fs_swab32(f->i_file_acl);
-	if (hostorder)
-		has_data_blocks = ext2fs_inode_data_blocks(fs, 
+	if (hostorder) {
+		has_data_blocks = ext2fs_inode_data_blocks(fs,
 					   (struct ext2_inode *) f);
-	t->i_blocks = ext2fs_swab32(f->i_blocks);
-	if (!hostorder)
-		has_data_blocks = ext2fs_inode_data_blocks(fs, 
+		t->i_blocks = ext2fs_swab32(f->i_blocks);
+		has_extents = (f->i_flags & EXT4_EXTENTS_FL);
+		t->i_flags = ext2fs_swab32(f->i_flags);
+	} else {
+		t->i_blocks = ext2fs_swab32(f->i_blocks);
+		has_data_blocks = ext2fs_inode_data_blocks(fs,
 					   (struct ext2_inode *) t);
+		t->i_flags = ext2fs_swab32(f->i_flags);
+		has_extents = (t->i_flags & EXT4_EXTENTS_FL);
+	}
 	t->i_flags = ext2fs_swab32(f->i_flags);
 	t->i_dir_acl = ext2fs_swab32(f->i_dir_acl);
-	if (!islnk || has_data_blocks ) {
-		for (i = 0; i < EXT2_N_BLOCKS; i++)
-			t->i_block[i] = ext2fs_swab32(f->i_block[i]);
+	if (!islnk || has_data_blocks) {
+	        if (has_extents) {
+			struct ext3_extent_header *eh;
+			int max = EXT2_N_BLOCKS * sizeof(__u32) - sizeof(*eh);
+
+			memcpy(t->i_block, f->i_block, sizeof(f->i_block));
+			eh = (struct ext3_extent_header *)t->i_block;
+			ext2fs_swap_extent_header(eh);
+
+			if (!eh->eh_depth) {
+				struct ext3_extent *ex = EXT_FIRST_EXTENT(eh);
+				max = max / sizeof(struct ext3_extent);
+				for (i = 0; i < max; i++, ex++)
+					ext2fs_swap_extent(ex);
+			} else {
+				struct ext3_extent_idx *ix =
+					EXT_FIRST_INDEX(eh);
+				max = max / sizeof(struct ext3_extent_idx);
+				for (i = 0; i < max; i++, ix++)
+					ext2fs_swap_extent_index(ix);
+			}
+		} else {
+			for (i = 0; i < EXT2_N_BLOCKS; i++)
+				t->i_block[i] = ext2fs_swab32(f->i_block[i]);
+		}
 	} else if (t != f) {
 		for (i = 0; i < EXT2_N_BLOCKS; i++)
 			t->i_block[i] = f->i_block[i];
@@ -227,11 +277,13 @@ void ext2fs_swap_inode_full(ext2_filsys fs, struct ext2_inode_large *t,
 	if (bufsize < (int) (sizeof(struct ext2_inode) + sizeof(__u16)))
 		return; /* no i_extra_isize field */
 
-	if (hostorder)
+	if (hostorder) {
 		extra_isize = f->i_extra_isize;
-	t->i_extra_isize = ext2fs_swab16(f->i_extra_isize);
-	if (!hostorder)
+		t->i_extra_isize = ext2fs_swab16(f->i_extra_isize);
+	} else {
+		t->i_extra_isize = ext2fs_swab16(f->i_extra_isize);
 		extra_isize = t->i_extra_isize;
+	}
 	if (extra_isize > EXT2_INODE_SIZE(fs->super) -
 				sizeof(struct ext2_inode)) {
 		/* this is error case: i_extra_size is too large */

@@ -285,7 +285,16 @@ void e2fsck_pass2(e2fsck_t ctx)
 			ext2fs_mark_super_dirty(fs);
 		}
 	}
-	
+
+	if (!ctx->extent_files &&
+	    (sb->s_feature_incompat & EXT3_FEATURE_INCOMPAT_EXTENTS)) {
+		if (fs->flags & EXT2_FLAG_RW) {
+			sb->s_feature_incompat &=
+				~EXT3_FEATURE_INCOMPAT_EXTENTS;
+			ext2fs_mark_super_dirty(fs);
+		}
+	}
+
 #ifdef RESOURCE_TRACK
 	if (ctx->options & E2F_OPT_TIME2) {
 		e2fsck_clear_progbar(ctx);

@@ -35,6 +35,7 @@ OBJS= $(DEBUGFS_LIB_OBJS) $(RESIZE_LIB_OBJS) $(E2IMAGE_LIB_OBJS) \
 	dir_iterate.o \
 	expanddir.o \
 	ext_attr.o \
+	extents.o \
 	finddev.o \
 	flushb.o \
 	freefs.o \
@@ -91,6 +92,7 @@ SRCS= ext2_err.c \
 	$(srcdir)/dupfs.c \
 	$(srcdir)/expanddir.c \
 	$(srcdir)/ext_attr.c \
+	$(srcdir)/extents.c \
 	$(srcdir)/fileio.c \
 	$(srcdir)/finddev.c \
 	$(srcdir)/flushb.c \
@@ -134,7 +136,8 @@ SRCS= ext2_err.c \
 	$(srcdir)/tst_bitops.c \
 	$(srcdir)/tst_byteswap.c \
 	$(srcdir)/tst_getsize.c \
-	$(srcdir)/tst_iscan.c
+	$(srcdir)/tst_iscan.c \
+	$(srcdir)/tst_types.c
 
 HFILES= bitops.h ext2fs.h ext2_io.h ext2_fs.h ext2_ext_attr.h ext3_extents.h \
 	tdb.h
@@ -402,6 +405,10 @@ ext_attr.o: $(srcdir)/ext_attr.c $(srcdir)/ext2_fs.h \
  $(srcdir)/ext2fs.h $(srcdir)/ext2_fs.h $(srcdir)/ext3_extents.h \
  $(top_srcdir)/lib/et/com_err.h $(srcdir)/ext2_io.h \
  $(top_builddir)/lib/ext2fs/ext2_err.h $(srcdir)/bitops.h
+extents.o: $(srcdir)/extents.c $(srcdir)/ext2_fs.h \
+ $(top_builddir)/lib/ext2fs/ext2_types.h $(srcdir)/ext3_extents.h \
+ $(srcdir)/ext2fs.h $(srcdir)/ext2_fs.h $(top_srcdir)/lib/et/com_err.h \
+ $(srcdir)/ext2_io.h $(top_builddir)/lib/ext2fs/ext2_err.h $(srcdir)/bitops.h
 fileio.o: $(srcdir)/fileio.c $(srcdir)/ext2_fs.h \
  $(top_builddir)/lib/ext2fs/ext2_types.h $(srcdir)/ext2fs.h \
  $(srcdir)/ext2_fs.h $(srcdir)/ext3_extents.h $(top_srcdir)/lib/et/com_err.h \

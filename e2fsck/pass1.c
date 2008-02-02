@@ -46,6 +46,7 @@
 
 #include "e2fsck.h"
 #include <ext2fs/ext2_ext_attr.h>
+#include <ext2fs/ext3_extents.h>
 
 #include "problem.h"
 
@@ -79,16 +80,19 @@ static void adjust_extattr_refcount(e2fsck_t ctx, ext2_refcount_t refcount,
 struct process_block_struct {
 	ext2_ino_t	ino;
 	unsigned	is_dir:1, is_reg:1, clear:1, suppress:1,
-				fragmented:1, compressed:1, bbcheck:1;
+			fragmented:1, compressed:1, bbcheck:1, extent:1;
 	blk_t		num_blocks;
 	blk_t		max_blocks;
 	e2_blkcnt_t	last_block;
 	int		num_illegal_blocks;
+	int		last_illegal_blocks;
 	blk_t		previous_block;
 	struct ext2_inode *inode;
 	struct problem_context *pctx;
 	ext2fs_block_bitmap fs_meta_blocks;
 	e2fsck_t	ctx;
+	struct ext3_extent_header *eh_prev;
+	void		*block_buf;
 };
 
 struct process_inode_block {
@@ -137,7 +141,7 @@ int e2fsck_pass1_check_device_inode(ext2_filsys fs EXT2FS_ATTR((unused)),
 	 * If the index flag is set, then this is a bogus
 	 * device/fifo/socket
 	 */
-	if (inode->i_flags & EXT2_INDEX_FL)
+	if (inode->i_flags & (EXT2_INDEX_FL | EXT4_EXTENTS_FL))
 		return 0;
 
 	/*
@@ -171,7 +175,7 @@ int e2fsck_pass1_check_symlink(ext2_filsys fs, struct ext2_inode *inode,
 	blk_t	blocks;
 
 	if ((inode->i_size_high || inode->i_size == 0) ||
-	    (inode->i_flags & EXT2_INDEX_FL))
+	    (inode->i_flags & (EXT2_INDEX_FL | EXT4_EXTENTS_FL)))
 		return 0;
 
 	blocks = ext2fs_inode_data_blocks(fs, inode);
@@ -484,7 +488,9 @@ void e2fsck_pass1(e2fsck_t ctx)
 	int		imagic_fs;
 	int		busted_fs_time = 0;
 	int		inode_size;
-	
+	struct ext3_extent_header *eh;
+	int		extent_fs;
+
 #ifdef RESOURCE_TRACK
 	init_resource_track(&rtrack);
 #endif
@@ -515,6 +521,7 @@ void e2fsck_pass1(e2fsck_t ctx)
 #undef EXT2_BPP
 
 	imagic_fs = (sb->s_feature_compat & EXT2_FEATURE_COMPAT_IMAGIC_INODES);
+	extent_fs = (sb->s_feature_incompat & EXT3_FEATURE_INCOMPAT_EXTENTS);
 
 	/*
 	 * Allocate bitmaps structures
@@ -895,8 +902,7 @@ void e2fsck_pass1(e2fsck_t ctx)
 				check_blocks(ctx, &pctx, block_buf);
 				continue;
 			}
-		}
-		else if (LINUX_S_ISFIFO (inode->i_mode) &&
+		} else if (LINUX_S_ISFIFO (inode->i_mode) &&
 			 e2fsck_pass1_check_device_inode(fs, inode)) {
 			check_immutable(ctx, &pctx);
 			check_size(ctx, &pctx);
@@ -908,21 +914,75 @@ void e2fsck_pass1(e2fsck_t ctx)
 			ctx->fs_sockets_count++;
 		} else
 			mark_inode_bad(ctx, ino);
-		if (inode->i_block[EXT2_IND_BLOCK])
-			ctx->fs_ind_count++;
-		if (inode->i_block[EXT2_DIND_BLOCK])
-			ctx->fs_dind_count++;
-		if (inode->i_block[EXT2_TIND_BLOCK])
-			ctx->fs_tind_count++;
-		if (inode->i_block[EXT2_IND_BLOCK] ||
-		    inode->i_block[EXT2_DIND_BLOCK] ||
-		    inode->i_block[EXT2_TIND_BLOCK] ||
-		    inode->i_file_acl) {
-			inodes_to_process[process_inode_count].ino = ino;
-			inodes_to_process[process_inode_count].inode = *inode;
-			process_inode_count++;
-		} else
-			check_blocks(ctx, &pctx, block_buf);
+
+		eh = (struct ext3_extent_header *)inode->i_block;
+		if ((inode->i_flags & EXT4_EXTENTS_FL)) {
+			if ((LINUX_S_ISREG(inode->i_mode) ||
+			     LINUX_S_ISDIR(inode->i_mode)) &&
+			    ext2fs_extent_header_verify(eh, EXT2_N_BLOCKS *
+							sizeof(__u32)) == 0) {
+				if (!extent_fs &&
+				    fix_problem(ctx,PR_1_EXTENT_FEATURE,&pctx)){
+					sb->s_feature_incompat |=
+						EXT3_FEATURE_INCOMPAT_EXTENTS;
+					ext2fs_mark_super_dirty(fs);
+					extent_fs = 1;
+				}
+			} else if (fix_problem(ctx, PR_1_SET_EXTENT_FL, &pctx)){
+				inode->i_flags &= ~EXT4_EXTENTS_FL;
+				e2fsck_write_inode(ctx, ino, inode, "pass1");
+				goto check_ind_inode;
+			}
+		} else if (extent_fs &&
+			   (LINUX_S_ISREG(inode->i_mode) ||
+			    LINUX_S_ISDIR(inode->i_mode)) &&
+			   ext2fs_extent_header_verify(eh, EXT2_N_BLOCKS *
+						       sizeof(__u32)) == 0 &&
+			   fix_problem(ctx, PR_1_UNSET_EXTENT_FL, &pctx)) {
+			inode->i_flags |= EXT4_EXTENTS_FL;
+			e2fsck_write_inode(ctx, ino, inode, "pass1");
+		}
+		if (extent_fs && inode->i_flags & EXT4_EXTENTS_FL) {
+			ctx->extent_files++;
+			switch(eh->eh_depth) {
+			case 0:
+				break;
+			case 1:
+				ctx->fs_ind_count++;
+				break;
+			case 2:
+				ctx->fs_dind_count++;
+				break;
+			default:
+				ctx->fs_tind_count++;
+				break;
+			}
+			if (eh->eh_depth > 0) {
+				inodes_to_process[process_inode_count].ino = ino;
+				inodes_to_process[process_inode_count].inode = *inode;
+				process_inode_count++;
+			} else {
+				check_blocks(ctx, &pctx, block_buf);
+			}
+		} else {
+		check_ind_inode:
+			if (inode->i_block[EXT2_IND_BLOCK])
+				ctx->fs_ind_count++;
+			if (inode->i_block[EXT2_DIND_BLOCK])
+				ctx->fs_dind_count++;
+			if (inode->i_block[EXT2_TIND_BLOCK])
+				ctx->fs_tind_count++;
+			if (inode->i_block[EXT2_IND_BLOCK] ||
+			    inode->i_block[EXT2_DIND_BLOCK] ||
+			    inode->i_block[EXT2_TIND_BLOCK] ||
+			    inode->i_file_acl) {
+				inodes_to_process[process_inode_count].ino = ino;
+				inodes_to_process[process_inode_count].inode = *inode;
+				process_inode_count++;
+			} else {
+				check_blocks(ctx, &pctx, block_buf);
+			}
+		}
 
 		if (ctx->flags & E2F_FLAG_SIGNAL_MASK)
 			return;
@@ -1430,10 +1490,23 @@ clear_extattr:
 	return 0;
 }
 
+static int htree_blk_iter_cb(ext2_filsys fs EXT2FS_ATTR((unused)),
+			     blk_t *blocknr,
+			     e2_blkcnt_t blockcnt EXT2FS_ATTR((unused)),
+			     blk_t ref_blk EXT2FS_ATTR((unused)),
+			     int ref_offset EXT2FS_ATTR((unused)),
+			     void *priv_data)
+{
+	blk_t *blk = priv_data;
+
+	*blk = *blocknr;
+
+	return BLOCK_ABORT;
+}
+
 /* Returns 1 if bad htree, 0 if OK */
 static int handle_htree(e2fsck_t ctx, struct problem_context *pctx,
-			ext2_ino_t ino EXT2FS_ATTR((unused)),
-			struct ext2_inode *inode,
+			ext2_ino_t ino, struct ext2_inode *inode,
 			char *block_buf)
 {
 	struct ext2_dx_root_info	*root;
@@ -1447,7 +1520,8 @@ static int handle_htree(e2fsck_t ctx, struct problem_context *pctx,
 	     fix_problem(ctx, PR_1_HTREE_SET, pctx)))
 		return 1;
 
-	blk = inode->i_block[0];
+	ext2fs_block_iterate2(fs, ino, BLOCK_FLAG_DATA_ONLY | BLOCK_FLAG_HOLE,
+			      block_buf, htree_blk_iter_cb, &blk);
 	if (((blk == 0) ||
 	     (blk < fs->super->s_first_data_block) ||
 	     (blk >= fs->super->s_blocks_count)) &&
@@ -1484,6 +1558,135 @@ static int handle_htree(e2fsck_t ctx, struct problem_context *pctx,
 	return 0;
 }
 
+/* sort 0 to the end of the list so we can exit early */
+static EXT2_QSORT_TYPE verify_ind_cmp(const void *a, const void *b)
+{
+	const __u32 blk_a = *(__u32 *)a - 1, blk_b = *(__u32 *)b - 1;
+
+	return blk_b > blk_a ? -1 : blk_a - blk_b;
+}
+
+/* Verify whether an indirect block is sane.  If it has multiple references
+ * to the same block, or if it has a large number of bad or duplicate blocks
+ * chances are that it is corrupt and we should just clear it instead of
+ * trying to salvage it.
+ * NOTE: this needs to get a copy of the blocks, since it reorders them */
+static int e2fsck_ind_block_verify(struct process_block_struct *p,
+				   void *block_buf, int buflen)
+{
+	__u32 blocks[EXT2_N_BLOCKS], *indir = block_buf;
+	int num_indir = buflen / sizeof(*indir);
+	int i, bad = 0;
+
+	if (num_indir == EXT2_N_BLOCKS) {
+		memcpy(blocks, block_buf, buflen);
+		indir = blocks;
+	}
+	qsort(indir, num_indir, sizeof(*indir), verify_ind_cmp);
+
+	for (i = 0; i < num_indir; i++) {
+		if (indir[i] == 0)
+			break;
+
+		/* bad block number, or duplicate block */
+		if (indir[i] < p->ctx->fs->super->s_first_data_block ||
+		    indir[i] > p->ctx->fs->super->s_blocks_count ||
+		    ext2fs_fast_test_block_bitmap(p->ctx->block_found_map,
+						  indir[i]))
+			bad++;
+
+		/* shouldn't reference the same block twice within a block */
+		if (i > 0 && indir[i] == indir[i - 1])
+			bad++;
+	}
+
+	if ((num_indir <= EXT2_N_BLOCKS && bad > 4) || bad > 8)
+		return PR_1_INDIRECT_BAD;
+
+#if DEBUG_E2FSCK
+	/* For debugging, clobber buffer to ensure it doesn't appear sane */
+	memset(indir, 0xca, buflen);
+#endif
+	return 0;
+}
+
+static int e2fsck_ext_block_verify(struct process_block_struct *p,
+				   void *block_buf, int buflen)
+{
+	struct ext3_extent_header *eh = block_buf, *eh_sav;
+	e2fsck_t ctx = p->ctx;
+	struct problem_context *pctx = p->pctx;
+	int i, problem = 0, high_bits_ok = 0;
+
+	if (ext2fs_extent_header_verify(eh, buflen))
+		return PR_1_EXTENT_IDX_BAD;
+
+	if (p->eh_prev && p->eh_prev->eh_depth != eh->eh_depth + 1)
+		return PR_1_EXTENT_IDX_BAD;
+
+	if (ctx->fs->super->s_blocks_count_hi) /* FIXME: 48-bit support ??? */
+		high_bits_ok = 1;
+
+	eh_sav = p->eh_prev;
+	p->eh_prev = eh;
+
+	if (eh->eh_depth == 0) {
+		struct ext3_extent *ex = EXT_FIRST_EXTENT(eh), *ex_prev = NULL;
+
+		for (i = 0; i < eh->eh_entries; i++, ex++) {
+			if (ex->ee_start_hi && !high_bits_ok &&
+			    fix_problem(ctx, PR_1_EXTENT_HI, pctx)) {
+				ex->ee_start_hi = 0;
+				problem = PR_1_EXTENT_CHANGED;
+			}
+
+			if (ext2fs_extent_verify(ctx->fs, ex, ex_prev, NULL,0)){
+				p->num_illegal_blocks++;
+				pctx->blkcount = ex->ee_start;
+				pctx->num = ex->ee_len;
+				pctx->blk = ex->ee_block;
+				if (fix_problem(ctx, PR_1_EXTENT_BAD, pctx)) {
+					ext2fs_extent_remove(eh, ex);
+					i--; ex--; /* check next (moved) item */
+					problem = PR_1_EXTENT_CHANGED;
+					continue;
+				}
+			}
+
+			ex_prev = ex;
+		}
+	} else {
+		struct ext3_extent_idx *ix =EXT_FIRST_INDEX(eh), *ix_prev =NULL;
+
+		for (i = 0; i < eh->eh_entries; i++, ix++) {
+			if (ix->ei_leaf_hi && !high_bits_ok &&
+			    fix_problem(ctx, PR_1_EXTENT_HI, pctx)) {
+				ix->ei_leaf_hi = ix->ei_unused = 0;
+				problem = PR_1_EXTENT_CHANGED;
+			}
+
+			if (ext2fs_extent_index_verify(ctx->fs, ix, ix_prev)) {
+				p->num_illegal_blocks++;
+				pctx->blkcount = ix->ei_leaf;;
+				pctx->num = i;
+				pctx->blk = ix->ei_block;
+				if (fix_problem(ctx, PR_1_EXTENT_IDX_BAD,pctx)){
+					ext2fs_extent_index_remove(eh, ix);
+					i--; ix--; /* check next (moved) item */
+					problem = PR_1_EXTENT_CHANGED;
+					continue;
+				}
+			}
+
+			ix_prev = ix;
+		}
+	}
+
+	p->eh_prev = eh_sav;
+
+	return problem;
+}
+
 /*
  * This subroutine is called on each inode to account for all of the
  * blocks used by that inode.
@@ -1503,9 +1706,11 @@ static void check_blocks(e2fsck_t ctx, struct problem_context *pctx,
 	pb.num_blocks = 0;
 	pb.last_block = -1;
 	pb.num_illegal_blocks = 0;
+	pb.last_illegal_blocks = 0;
 	pb.suppress = 0; pb.clear = 0;
 	pb.fragmented = 0;
 	pb.compressed = 0;
+	pb.extent = !!(inode->i_flags & EXT4_EXTENTS_FL);
 	pb.previous_block = 0;
 	pb.is_dir = LINUX_S_ISDIR(inode->i_mode);
 	pb.is_reg = LINUX_S_ISREG(inode->i_mode);
@@ -1513,6 +1718,8 @@ static void check_blocks(e2fsck_t ctx, struct problem_context *pctx,
 	pb.inode = inode;
 	pb.pctx = pctx;
 	pb.ctx = ctx;
+	pb.eh_prev = NULL;
+	pb.block_buf = block_buf;
 	pctx->ino = ino;
 	pctx->errcode = 0;
 
@@ -1534,10 +1741,27 @@ static void check_blocks(e2fsck_t ctx, struct problem_context *pctx,
 		pb.num_blocks++;
 	}
 
-	if (ext2fs_inode_has_valid_blocks(inode))
-		pctx->errcode = ext2fs_block_iterate2(fs, ino,
-				       pb.is_dir ? BLOCK_FLAG_HOLE : 0,
-				       block_buf, process_block, &pb);
+	if (ext2fs_inode_has_valid_blocks(inode)) {
+		int problem = 0;
+
+		if (pb.extent)
+			problem = e2fsck_ext_block_verify(&pb, inode->i_block,
+							sizeof(inode->i_block));
+		else
+			problem = e2fsck_ind_block_verify(&pb, inode->i_block,
+							sizeof(inode->i_block));
+		if (problem == PR_1_EXTENT_CHANGED) {
+			dirty_inode++;
+			problem = 0;
+		}
+
+		if (problem && fix_problem(ctx, problem, pctx))
+			pb.clear = 1;
+		else
+			pctx->errcode = ext2fs_block_iterate2(fs, ino,
+						pb.is_dir ? BLOCK_FLAG_HOLE : 0,
+						block_buf, process_block, &pb);
+	}
 	end_problem_latch(ctx, PR_LATCH_BLOCK);
 	end_problem_latch(ctx, PR_LATCH_TOOBIG);
 	if (ctx->flags & E2F_FLAG_SIGNAL_MASK)
@@ -1701,6 +1925,9 @@ static char *describe_illegal_block(ext2_filsys fs, blk_t block)
 }
 #endif
 
+#define IND_BLKCNT(_b) ((_b) == BLOCK_COUNT_IND || (_b) == BLOCK_COUNT_DIND ||\
+			(_b) == BLOCK_COUNT_TIND)
+
 /*
  * This is a helper function for check_blocks().
  */
@@ -1779,7 +2006,8 @@ static int process_block(ext2_filsys fs,
 	 * file be contiguous.  (Which can never be true for really
 	 * big files that are greater than a block group.)
 	 */
-	if (!HOLE_BLKADDR(p->previous_block)) {
+	if (!HOLE_BLKADDR(p->previous_block) &&
+	    !(p->extent && IND_BLKCNT(blockcnt))) {
 		if (p->previous_block+1 != blk)
 			p->fragmented = 1;
 	}
@@ -1796,9 +2024,34 @@ static int process_block(ext2_filsys fs,
 	    blk >= fs->super->s_blocks_count)
 		problem = PR_1_ILLEGAL_BLOCK_NUM;
 
+	if (!problem && IND_BLKCNT(blockcnt) && p->ino != EXT2_RESIZE_INO) {
+		if (p->extent) {
+			if (ext2fs_read_ext_block(ctx->fs, blk, p->block_buf))
+				problem = PR_1_BLOCK_ITERATE;
+			else
+				problem = e2fsck_ext_block_verify(p,
+								 p->block_buf,
+								 fs->blocksize);
+			if (problem == PR_1_EXTENT_CHANGED) {
+				if (ext2fs_write_ext_block(ctx->fs, blk,
+							   p->block_buf))
+					problem = PR_1_BLOCK_ITERATE;
+			}
+
+		} else {
+			if (ext2fs_read_ind_block(ctx->fs, blk, p->block_buf))
+				problem = PR_1_BLOCK_ITERATE;
+			else
+				problem = e2fsck_ind_block_verify(p,
+								 p->block_buf,
+								 fs->blocksize);
+		}
+	}
+
 	if (problem) {
 		p->num_illegal_blocks++;
-		if (!p->suppress && (p->num_illegal_blocks % 12) == 0) {
+		if (!p->suppress &&
+		    p->num_illegal_blocks - p->last_illegal_blocks > 12) {
 			if (fix_problem(ctx, PR_1_TOO_MANY_BAD_BLOCKS, pctx)) {
 				p->clear = 1;
 				return BLOCK_ABORT;
@@ -1808,9 +2061,12 @@ static int process_block(ext2_filsys fs,
 				set_latch_flags(PR_LATCH_BLOCK,
 						PRL_SUPPRESS, 0);
 			}
+			p->last_illegal_blocks = p->num_illegal_blocks;
 		}
 		pctx->blk = blk;
 		pctx->blkcount = blockcnt;
+		if (problem == PR_1_EXTENT_CHANGED)
+			goto mark_used;
 		if (fix_problem(ctx, problem, pctx)) {
 			blk = *block_nr = 0;
 			ret_code = BLOCK_CHANGED;
@@ -1819,6 +2075,7 @@ static int process_block(ext2_filsys fs,
 			return 0;
 	}
 
+mark_used:
 	if (p->ino == EXT2_RESIZE_INO) {
 		/* 
 		 * The resize inode has already be sanity checked

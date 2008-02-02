@@ -784,6 +784,46 @@ static struct e2fsck_problem problem_table[] = {
 	  N_("@i %i is a %It but it looks like it is really a directory.\n"),
 	  PROMPT_FIX, 0 },
 
+	/* indirect block corrupt */
+	{ PR_1_INDIRECT_BAD,
+	  N_("@i %i has corrupt indirect block\n"),
+	  PROMPT_CLEAR, PR_PREEN_OK },
+
+	/* inode has extents, superblock missing INCOMPAT_EXTENTS feature */
+	{ PR_1_EXTENT_FEATURE,
+	  N_("@i %i is in extent format, but @S is missing EXTENTS feature\n"),
+	  PROMPT_FIX, PR_PREEN_OK },
+
+	/* inode has EXTENTS_FL set, but is not an extent inode */
+	{ PR_1_SET_EXTENT_FL,
+	  N_("@i %i has EXTENT_FL set, but is not in extents format\n"),
+	  PROMPT_FIX, PR_PREEN_OK },
+
+	/* inode missing EXTENTS_FL, but is an extent inode */
+	{ PR_1_UNSET_EXTENT_FL,
+	  N_("@i %i missing EXTENT_FL, but is in extents format\n"),
+	  PROMPT_FIX, PR_PREEN_OK },
+
+	/* extent index corrupt */
+	{ PR_1_EXTENT_BAD,
+	  N_("@i %i has corrupt extent at @b %b (logical %B) length %N\n"),
+	  PROMPT_CLEAR, PR_PREEN_OK },
+
+	/* extent index corrupt */
+	{ PR_1_EXTENT_IDX_BAD,
+	  N_("@i %i has corrupt extent index at @b %b (logical %B) entry %N\n"),
+	  PROMPT_CLEAR, PR_PREEN_OK },
+
+	/* extent has high 16 bits set */
+	{ PR_1_EXTENT_HI,
+	  N_("High 16 bits of extent/index @b set\n"),
+	  PROMPT_CLEAR, PR_LATCH_EXTENT_HI|PR_PREEN_OK|PR_NO_OK|PR_PREEN_NOMSG},
+
+	/* extent has high 16 bits set header */
+	{ PR_1_EXTENT_HI_LATCH,
+	  N_("@i %i has high 16 bits of extent/index @b set\n"),
+	  PROMPT_CLEAR, PR_PREEN_OK | PR_NO_OK | PR_PREEN_NOMSG },
+
 	/* Pass 1b errors */
 
 	/* Pass 1B: Rescan for duplicate/bad blocks */
@@ -1518,6 +1558,7 @@ static struct latch_descr pr_latch_info[] = {
 	{ PR_LATCH_LOW_DTIME, PR_1_ORPHAN_LIST_REFUGEES, 0 },
 	{ PR_LATCH_TOOBIG, PR_1_INODE_TOOBIG, 0 },
 	{ PR_LATCH_OPTIMIZE_DIR, PR_3A_OPTIMIZE_DIR_HEADER, PR_3A_OPTIMIZE_DIR_END },
+	{ PR_LATCH_EXTENT_HI, PR_1_EXTENT_HI_LATCH, 0 },
 	{ -1, 0, 0 },
 };
 

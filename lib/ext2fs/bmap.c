@@ -17,6 +17,7 @@
 
 #include "ext2_fs.h"
 #include "ext2fs.h"
+#include "ext3_extents.h"
 
 #if defined(__GNUC__) && !defined(NO_INLINE_FUNCS)
 #define _BMAP_INLINE_	__inline__
@@ -30,6 +31,65 @@ extern errcode_t ext2fs_bmap(ext2_filsys fs, ext2_ino_t ino,
 			     blk_t block, blk_t *phys_blk);
 
 #define inode_bmap(inode, nr) ((inode)->i_block[(nr)])
+
+/* see also block_iterate_extents() */
+static errcode_t block_bmap_extents(void *eh_buf, unsigned bufsize,
+				    ext2_filsys fs, blk_t block,blk_t *phys_blk)
+{
+	struct ext3_extent_header *eh = eh_buf;
+	struct ext3_extent *ex;
+	errcode_t ret = 0;
+	int i;
+
+	ret = ext2fs_extent_header_verify(eh, bufsize);
+	if (ret)
+		return ret;
+
+	if (eh->eh_depth == 0) {
+		ex = EXT_FIRST_EXTENT(eh);
+		for (i = 0; i < eh->eh_entries; i++, ex++) {
+			if (block < ex->ee_block)
+				continue;
+
+			if (block < ex->ee_block + ex->ee_len)
+				/* FIXME: 48-bit support */
+				*phys_blk = ex->ee_start + block - ex->ee_block;
+
+			/* only the first extent > block could hold the block
+			 * otherwise the extents would overlap */
+			break;
+		}
+	} else {
+		struct ext3_extent_idx *ix;
+		char *block_buf;
+
+		ret = ext2fs_get_mem(fs->blocksize, &block_buf);
+		if (ret)
+			return ret;
+
+		ix = EXT_FIRST_INDEX(eh);
+		for (i = 0; i < eh->eh_entries; i++, ix++) {
+			if (block < ix->ei_block)
+				continue;
+
+			ret = io_channel_read_blk(fs->io, ix->ei_leaf, 1,
+						  block_buf);
+			if (ret)
+				goto free_buf;
+
+			ret = block_bmap_extents(block_buf, fs->blocksize,
+						 fs, block, phys_blk);
+
+			/* only the first extent > block could hold the block
+			 * otherwise the extents would overlap */
+			break;
+		}
+
+	free_buf:
+		ext2fs_free_mem(&block_buf);
+	}
+	return ret;
+}
 
 static _BMAP_INLINE_ errcode_t block_ind_bmap(ext2_filsys fs, int flags, 
 					      blk_t ind, char *block_buf, 
@@ -155,6 +215,16 @@ errcode_t ext2fs_bmap(ext2_filsys fs, ext2_ino_t ino, struct ext2_inode *inode,
 			return retval;
 		inode = &inode_buf;
 	}
+
+	if (inode->i_flags & EXT4_EXTENTS_FL) {
+		if (bmap_flags) /* unsupported as yet */
+			return EXT2_ET_BLOCK_ALLOC_FAIL;
+		retval = block_bmap_extents(inode->i_block,
+					    sizeof(inode->i_block),
+					    fs, block, phys_blk);
+		goto done;
+	}
+
 	addr_per_block = (blk_t) fs->blocksize >> 2;
 
 	if (!block_buf) {

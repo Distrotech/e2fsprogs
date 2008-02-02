@@ -38,6 +38,7 @@ struct problem_context {
 #define PR_LATCH_LOW_DTIME 0x0070 /* Latch for pass1 orphaned list refugees */
 #define PR_LATCH_TOOBIG	0x0080	/* Latch for file to big errors */
 #define PR_LATCH_OPTIMIZE_DIR 0x0090 /* Latch for optimize directories */
+#define PR_LATCH_EXTENT_HI 0x00A0 /* Latch for extent high bits set */
 
 #define PR_LATCH(x)	((((x) & PR_LATCH_MASK) >> 4) - 1)
 
@@ -454,6 +455,33 @@ struct problem_context {
 
 /* inode appears to be a directory */
 #define PR_1_TREAT_AS_DIRECTORY		0x010055
+
+/* indirect block corrupt */
+#define PR_1_INDIRECT_BAD		0x010059
+
+/* wrong EXT3_FEATURE_INCOMPAT_EXTENTS flag */
+#define PR_1_EXTENT_FEATURE		0x010060
+
+/* EXT4_EXTENT_FL flag set on non-extent file */
+#define PR_1_SET_EXTENT_FL		0x010061
+
+/* EXT4_EXTENT_FL flag not set extent file */
+#define PR_1_UNSET_EXTENT_FL		0x010062
+
+/* extent index corrupt */
+#define PR_1_EXTENT_BAD			0x010063
+
+/* extent index corrupt */
+#define PR_1_EXTENT_IDX_BAD		0x010064
+
+/* extent/index has high 16 bits set - header */
+#define PR_1_EXTENT_HI			0x010065
+
+/* extent/index has high 16 bits set */
+#define PR_1_EXTENT_HI_LATCH		0x010066
+
+/* extent/index was modified & repaired - not really a problem */
+#define PR_1_EXTENT_CHANGED		0x010067
 
 /*
  * Pass 1b errors

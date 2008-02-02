@@ -454,11 +454,13 @@ typedef struct ext2_icount *ext2_icount_t;
 					 EXT2_FEATURE_INCOMPAT_COMPRESSION|\
 					 EXT3_FEATURE_INCOMPAT_JOURNAL_DEV|\
 					 EXT2_FEATURE_INCOMPAT_META_BG|\
+					 EXT3_FEATURE_INCOMPAT_EXTENTS|\
 					 EXT3_FEATURE_INCOMPAT_RECOVER)
 #else
 #define EXT2_LIB_FEATURE_INCOMPAT_SUPP	(EXT2_FEATURE_INCOMPAT_FILETYPE|\
 					 EXT3_FEATURE_INCOMPAT_JOURNAL_DEV|\
 					 EXT2_FEATURE_INCOMPAT_META_BG|\
+					 EXT3_FEATURE_INCOMPAT_EXTENTS|\
 					 EXT3_FEATURE_INCOMPAT_RECOVER)
 #endif
 #define EXT2_LIB_FEATURE_RO_COMPAT_SUPP	(EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER|\
@@ -725,6 +727,21 @@ extern errcode_t ext2fs_adjust_ea_refcount(ext2_filsys fs, blk_t blk,
 					   char *block_buf,
 					   int adjust, __u32 *newcount);
 
+/* extent.c */
+errcode_t ext2fs_extent_header_verify(struct ext3_extent_header *eh, int size);
+errcode_t ext2fs_extent_verify(ext2_filsys fs, struct ext3_extent *ex,
+			       struct ext3_extent *ex_prev,
+			       struct ext3_extent_idx *ix, int ix_len);
+errcode_t ext2fs_extent_index_verify(ext2_filsys fs,
+				     struct ext3_extent_idx *ix,
+				     struct ext3_extent_idx *ix_prev);
+errcode_t ext2fs_extent_remove(struct ext3_extent_header *eh,
+			       struct ext3_extent *ex);
+errcode_t ext2fs_extent_split(ext2_filsys fs, struct ext3_extent_header **eh,
+			      struct ext3_extent **ex, int count, int *flag);
+errcode_t ext2fs_extent_index_remove(struct ext3_extent_header *eh,
+				     struct ext3_extent_idx *ix);
+
 /* fileio.c */
 extern errcode_t ext2fs_file_open2(ext2_filsys fs, ext2_ino_t ino,
 				   struct ext2_inode *inode,
@@ -779,6 +796,8 @@ extern errcode_t ext2fs_image_bitmap_read(ext2_filsys fs, int fd, int flags);
 /* ind_block.c */
 errcode_t ext2fs_read_ind_block(ext2_filsys fs, blk_t blk, void *buf);
 errcode_t ext2fs_write_ind_block(ext2_filsys fs, blk_t blk, void *buf);
+errcode_t ext2fs_read_ext_block(ext2_filsys fs, blk_t blk, void *buf);
+errcode_t ext2fs_write_ext_block(ext2_filsys fs, blk_t blk, void *buf);
 
 /* initialize.c */
 extern errcode_t ext2fs_initialize(const char *name, int flags,
@@ -964,6 +983,9 @@ extern void ext2fs_swap_inode_full(ext2_filsys fs, struct ext2_inode_large *t,
 				   int bufsize);
 extern void ext2fs_swap_inode(ext2_filsys fs,struct ext2_inode *t,
 			      struct ext2_inode *f, int hostorder);
+extern void ext2fs_swap_extent_header(struct ext3_extent_header *eh);
+extern void ext2fs_swap_extent_index(struct ext3_extent_idx *ix);
+extern void ext2fs_swap_extent(struct ext3_extent *ex);
 
 /* valid_blk.c */
 extern int ext2fs_inode_has_valid_blocks(struct ext2_inode *inode);
