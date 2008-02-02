@@ -24,6 +24,8 @@ test_script: test_script.in Makefile
 	@chmod +x test_script
 
 check:: test_script
+	@echo "Removing remnants of earlier tests..."
+	$(RM) -f *~ *.log *.new *.failed *.ok test.img2*
 	@echo "Running e2fsprogs test suite..."
 	@echo " "
 	@./test_script
@@ -63,7 +65,7 @@ testend: test_script ${TDIR}/image
 	@echo "If all is well, edit ${TDIR}/name and rename ${TDIR}."
 
 clean::
-	$(RM) -f *~ *.log *.new *.failed *.ok test.img test_script
+	$(RM) -f *~ *.log *.new *.failed *.ok test.img* test_script
 
 distclean:: clean
 	$(RM) -f Makefile
