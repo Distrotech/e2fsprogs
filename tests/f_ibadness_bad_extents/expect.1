@@ -1,0 +1,34 @@
+Pass 1: Checking inodes, blocks, and sizes
+Inode 12 has corrupt extent at block 0 (logical 1231231222) length 492
+Clear? yes
+
+Inode 12 has corrupt extent at block 556 (logical 4294967295) length 45
+Clear? yes
+
+Inode 12 has corrupt extent at block 666 (logical 4294967295) length 5
+Clear? yes
+
+Inode 12 has corrupt extent at block 700 (logical 4294967295) length 45
+Clear? yes
+
+Inode 12, i_blocks is 984, should be 0.  Fix? yes
+
+Pass 2: Checking directory structure
+Inode 12 is badly corrupt (badness value = 9).  Clear? yes
+
+Pass 3: Checking directory connectivity
+Pass 4: Checking reference counts
+Pass 5: Checking group summary information
+Block bitmap differences:  -(6145--6636)
+Fix? yes
+
+Free blocks count wrong for group #0 (6525, counted=7017).
+Fix? yes
+
+Free blocks count wrong (14584, counted=15076).
+Fix? yes
+
+
+test_filesys: ***** FILE SYSTEM WAS MODIFIED *****
+test_filesys: 11/2048 files (0.0% non-contiguous), 1308/16384 blocks
+Exit status is 1
