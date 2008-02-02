@@ -1,0 +1,4 @@
+FSCK_OPT="-fy -E expand_extra_isize"
+SECOND_FSCK_OPT=-yf
+
+. $cmd_dir/run_e2fsck
