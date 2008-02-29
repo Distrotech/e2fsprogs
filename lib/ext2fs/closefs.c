@@ -100,8 +100,9 @@ int ext2fs_super_and_bgd_loc(ext2_filsys fs,
 			numblocks--;
 		}
 	}
-		
-	numblocks -= 2 + fs->inode_blocks_per_group;
+
+	if (!fs->super->s_log_groups_per_flex)
+		numblocks -= 2 + fs->inode_blocks_per_group;
 
 	if (ret_super_blk)
 		*ret_super_blk = super_blk;

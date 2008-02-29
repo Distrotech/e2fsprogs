@@ -96,7 +96,7 @@ static void usage(void)
 {
 	fprintf(stderr, _("Usage: %s [-c|-t|-l filename] [-b block-size] "
 	"[-f fragment-size]\n\t[-i bytes-per-inode] [-I inode-size] "
-	"[-j] [-J journal-options]\n"
+	"[-j] [-J journal-options] [-G meta group size]\n"
 	"\t[-N number-of-inodes] [-m reserved-blocks-percentage] "
 	"[-o creator-os]\n\t[-g blocks-per-group] [-L volume-label] "
 	"[-M last-mounted-directory]\n\t[-O feature[,...]] "
@@ -476,7 +476,8 @@ static void setup_lazy_bg(ext2_filsys fs)
 			 * group because it may need block bitmap padding. */
 			if ((ext2fs_bg_has_super(fs, i) &&
 			     sb->s_reserved_gdt_blocks) ||
-			    i == fs->group_desc_count - 1)
+			    i == fs->group_desc_count - 1 ||
+			    (bg->bg_flags & EXT2_BG_FLEX_METADATA))
 				continue;
 
 			blks = ext2fs_super_and_bgd_loc(fs, i, 0, 0, 0, 0);
@@ -962,6 +963,7 @@ static void PRS(int argc, char *argv[])
 	int		blocksize = 0;
 	int		inode_ratio = 0;
 	int		inode_size = 0;
+	unsigned long	flex_bg_size = 0;
 	double		reserved_ratio = 5.0;
 	int		sector_size = 0;
 	int		show_version_only = 0;
@@ -1044,7 +1046,7 @@ static void PRS(int argc, char *argv[])
 	}
 
 	while ((c = getopt (argc, argv,
-		    "b:cf:g:i:jl:m:no:qr:s:tvE:FI:J:L:M:N:O:R:ST:V")) != EOF) {
+		    "b:cf:g:G:i:jl:m:no:qr:s:tvE:FI:J:L:M:N:O:R:ST:V")) != EOF) {
 		switch (c) {
 		case 'b':
 			blocksize = strtol(optarg, &tmp, 0);
@@ -1092,6 +1094,20 @@ static void PRS(int argc, char *argv[])
 			if ((fs_param.s_blocks_per_group % 8) != 0) {
 				com_err(program_name, 0,
 				_("blocks per group must be multiple of 8"));
+				exit(1);
+			}
+			break;
+		case 'G':
+			flex_bg_size = strtoul(optarg, &tmp, 0);
+			if (*tmp) {
+				com_err(program_name, 0,
+					_("Illegal number for Flex_BG size"));
+				exit(1);
+			}
+			if (flex_bg_size < 2 ||
+			    (flex_bg_size & (flex_bg_size-1)) != 0) {
+				com_err(program_name, 0,
+					_("Flex_BG size must be a power of 2"));
 				exit(1);
 			}
 			break;
@@ -1489,6 +1505,9 @@ static void PRS(int argc, char *argv[])
 			exit(1);
 		}
 	}
+
+	if (flex_bg_size)
+		fs_param.s_log_groups_per_flex = int_log2(flex_bg_size);
 
 	if (!force && fs_param.s_blocks_count >= ((unsigned) 1 << 31)) {
 		com_err(program_name, 0,
