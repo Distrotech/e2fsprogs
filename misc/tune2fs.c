@@ -303,6 +303,7 @@ static void update_feature_set(ext2_filsys fs, char *features)
 {
 	int sparse, old_sparse, filetype, old_filetype;
 	int journal, old_journal, dxdir, old_dxdir, uninit;
+	int flex_bg, old_flex_bg;
 	int mmp, old_mmp;
 	struct ext2_super_block *sb= fs->super;
 	int dir_nlink, old_dir_nlink;
@@ -319,6 +320,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 		EXT4_FEATURE_RO_COMPAT_DIR_NLINK;
 	old_filetype = sb->s_feature_incompat &
 		EXT2_FEATURE_INCOMPAT_FILETYPE;
+	old_flex_bg = sb->s_feature_incompat &
+		EXT4_FEATURE_INCOMPAT_FLEX_BG;
 	old_journal = sb->s_feature_compat &
 		EXT3_FEATURE_COMPAT_HAS_JOURNAL;
 	old_dxdir = sb->s_feature_compat &
@@ -339,6 +342,8 @@ static void update_feature_set(ext2_filsys fs, char *features)
 		EXT4_FEATURE_RO_COMPAT_DIR_NLINK;
 	filetype = sb->s_feature_incompat &
 		EXT2_FEATURE_INCOMPAT_FILETYPE;
+	flex_bg = sb->s_feature_incompat &
+		EXT4_FEATURE_INCOMPAT_FLEX_BG;
 	journal = sb->s_feature_compat &
 		EXT3_FEATURE_COMPAT_HAS_JOURNAL;
 	dxdir = sb->s_feature_compat &
@@ -406,6 +411,14 @@ static void update_feature_set(ext2_filsys fs, char *features)
 		printf(_("Multiple mount protection has been enabled. The MMP "
 			 "update interval has been set to %d seconds.\n"),
 		       sb->s_mmp_update_interval);
+	}
+	if (!flex_bg && old_flex_bg) {
+		if (ext2fs_check_desc(fs)) {
+			fputs(_("Clearing the flex_bg flag would "
+				"cause the the filesystem to be\n"
+				"inconsistent.\n"), stderr);
+			exit(1);
+		}
 	}
 
 	if (old_mmp && !mmp) {
