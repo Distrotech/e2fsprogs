@@ -6,7 +6,6 @@ FILES
 ^core
 *~
 .pc
-patches
 Makefile
 *.o
 *.orig

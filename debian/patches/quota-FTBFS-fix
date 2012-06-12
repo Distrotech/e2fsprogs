@@ -1,0 +1,25 @@
+Description: libquota: remove unneeded #include of <sys/quota.h>
+ The attempted inclusion of sys/quota.h is causing failures in when
+ building on the hurd and freebsd platforms for Debian.  It's not
+ necessary any more, so just remove the #include.
+ .    
+ Signed-off-by: "Theodore Ts'o" <tytso@mit.edu>
+ .
+ e2fsprogs (1.42.4-2) unstable; urgency=medium
+ .
+   * Fix FTBFS problem on the hurd and freebsd platforms
+Author: Theodore Y. Ts'o <tytso@mit.edu>
+Origin: http://git.kernel.org/?p=fs/ext2/e2fsprogs.git;a=commitdiff;h=8f00911a21f4e95de84c60e09cc4df173e5b6701
+
+---
+
+--- e2fsprogs-1.42.4.orig/lib/quota/quotaio.c
++++ e2fsprogs-1.42.4/lib/quota/quotaio.c
+@@ -15,7 +15,6 @@
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ #include <sys/file.h>
+-#include <sys/quota.h>
+ 
+ #include "common.h"
+ #include "quotaio.h"
