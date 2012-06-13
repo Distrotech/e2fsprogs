@@ -1,0 +1,335 @@
+Description: Fix blhc (Build Log Hardening Check) warnings
+ The Build Log Hardening Check is a debian tool which scans the output
+ of a package build making sure that the security hardening flags are
+ used when compiling and linking all of binaries in a package.
+ . 
+ For the most part we were passing CFLAGS, CPPFLAGS, and LDFLAGS down
+ to the compiler and link commands, but there there were one or two
+ exceptions.  In addition, there where a few places in "make install"
+ where the V=1 option was not being honored, which triggered blhc
+ warnings since it couldn't analyze those commands.
+ . 
+ The e2fsck.static was the only binary that was not getting built and
+ packaged with the hardening flags, but I've fixed all of the blhc
+ warnings so in the future it will be obvious if we regress.
+Author: Theodore Ts'o <tytso@mit.edu>
+Origin: http://git.kernel.org/?p=fs/ext2/e2fsprogs.git;a=commitdiff;h=9234c81457c9e2753cfde6b6a86a9982bfc2925a
+
+---
+
+diff --git a/MCONFIG.in b/MCONFIG.in
+index 0c74522..fa2b03e 100644
+--- a/MCONFIG.in
++++ b/MCONFIG.in
+@@ -35,15 +35,19 @@ datadir = @datadir@
+ @ifGNUmake@ V =
+ @ifGNUmake@ ifeq ($(strip $(V)),)
+ @ifGNUmake@ #  E = @echo
++@ifGNUmake@ #  ES = echo
+ @ifGNUmake@ #  Q = @
+ @ifGNUmake@    E = @E@
++@ifGNUmake@    ES = @ES@
+ @ifGNUmake@    Q = @Q@
+ @ifGNUmake@ else
+ @ifGNUmake@    E = @\#
++@ifGNUmake@    ES = \#
+ @ifGNUmake@    Q =
+ @ifGNUmake@ endif
+ 
+ @ifNotGNUmake@ E = @E@
++@ifNotGNUmake@ ES = @ES@
+ @ifNotGNUmake@ Q = @Q@
+ 
+ CC = @CC@
+diff --git a/configure b/configure
+index b741112..732119e 100755
+--- a/configure
++++ b/configure
+@@ -713,6 +713,7 @@ BSDLIB_CMT
+ ELF_CMT
+ HTREE_CMT
+ Q
++ES
+ E
+ LINK_BUILD_FLAGS
+ SYMLINK_RELATIVE
+@@ -4434,11 +4435,13 @@ then
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Disabling verbose make commands" >&5
+ $as_echo "Disabling verbose make commands" >&6; }
+ 	E=@echo
++	ES=echo
+ 	Q=@
+ else
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Enabling verbose make commands" >&5
+ $as_echo "Enabling verbose make commands" >&6; }
+ 	E=@\\#
++	ES=\\#
+ 	Q=
+ fi
+ 
+@@ -4446,12 +4449,14 @@ else
+   { $as_echo "$as_me:${as_lineno-$LINENO}: result: Disabling verbose make commands" >&5
+ $as_echo "Disabling verbose make commands" >&6; }
+ E=@echo
++ES=echo
+ Q=@
+ 
+ fi
+ 
+ 
+ 
++
+ # Check whether --enable-compression was given.
+ if test "${enable_compression+set}" = set; then :
+   enableval=$enable_compression; if test "$enableval" = "no"
+@@ -11304,7 +11309,7 @@ if test "$USE_INCLUDED_LIBINTL" = "yes" ; then
+ fi
+ 
+ if test $cross_compiling = no; then
+-   BUILD_CFLAGS="$CFLAGS"
++   BUILD_CFLAGS="$CFLAGS $CPPFLAGS"
+    BUILD_LDFLAGS="$LDFLAGS"
+ else
+    BUILD_CFLAGS=
+diff --git a/configure.in b/configure.in
+index aa4c777..7373e8e 100644
+--- a/configure.in
++++ b/configure.in
+@@ -212,18 +212,22 @@ if test "$enableval" = "no"
+ then
+ 	AC_MSG_RESULT([Disabling verbose make commands])
+ 	E=@echo
++	ES=echo
+ 	Q=@
+ else
+ 	AC_MSG_RESULT([Enabling verbose make commands])
+ 	E=@\\#
++	ES=\\#
+ 	Q= 
+ fi
+ ,
+ AC_MSG_RESULT([Disabling verbose make commands])
+ E=@echo
++ES=echo
+ Q=@
+ )
+ AC_SUBST(E)
++AC_SUBST(ES)
+ AC_SUBST(Q)
+ dnl
+ dnl handle --enable-compression
+@@ -1230,7 +1234,7 @@ dnl
+ dnl Build CFLAGS
+ dnl
+ if test $cross_compiling = no; then
+-   BUILD_CFLAGS="$CFLAGS"
++   BUILD_CFLAGS="$CFLAGS $CPPFLAGS"
+    BUILD_LDFLAGS="$LDFLAGS"
+ else
+    BUILD_CFLAGS=
+diff --git a/e2fsck/Makefile.in b/e2fsck/Makefile.in
+index c51bfdb..a52bbe1 100644
+--- a/e2fsck/Makefile.in
++++ b/e2fsck/Makefile.in
+@@ -136,7 +136,7 @@ e2fsck.profiled: $(PROFILED_OBJS)  $(PROFILED_DEPLIBS)
+ 
+ gen_crc32table: $(srcdir)/gen_crc32table.c
+ 	$(E) "	CC $@"
+-	$(Q) $(BUILD_CC) $(BUILD_CFLAGS) -o gen_crc32table \
++	$(Q) $(BUILD_CC) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o gen_crc32table \
+ 		$(srcdir)/gen_crc32table.c
+ 
+ crc32table.h: gen_crc32table
+@@ -216,11 +216,11 @@ installdirs:
+ 
+ install: $(PROGS) $(MANPAGES) $(FMANPAGES) installdirs
+ 	$(Q) for i in $(PROGS); do \
+-		echo "	INSTALL $(root_sbindir)/$$i"; \
++		$(ES) "	INSTALL $(root_sbindir)/$$i"; \
+ 		$(INSTALL_PROGRAM) $$i $(DESTDIR)$(root_sbindir)/$$i; \
+ 	done
+ 	$(Q) for i in ext2 ext3 ext4 ext4dev; do \
+-		echo "	LINK $(root_sbindir)/fsck.$$i"; \
++		$(ES) "	LINK $(root_sbindir)/fsck.$$i"; \
+ 		(cd $(DESTDIR)$(root_sbindir); \
+ 			$(LN) $(LINK_INSTALL_FLAGS) e2fsck fsck.$$i); \
+ 	done
+@@ -228,25 +228,25 @@ install: $(PROGS) $(MANPAGES) $(FMANPAGES) installdirs
+ 		for j in $(COMPRESS_EXT); do \
+ 			$(RM) -f $(DESTDIR)$(man8dir)/$$i.$$j; \
+ 		done; \
+-		echo "	INSTALL_DATA $(man8dir)/$$i"; \
++		$(ES) "	INSTALL_DATA $(man8dir)/$$i"; \
+ 		$(INSTALL_DATA) $$i $(DESTDIR)$(man8dir)/$$i; \
+ 	done
+ 	$(Q) for i in $(FMANPAGES); do \
+ 		for j in $(COMPRESS_EXT); do \
+ 			$(RM) -f $(DESTDIR)$(man5dir)/$$i.$$j; \
+ 		done; \
+-		echo "	INSTALL_DATA $(man5dir)/$$i"; \
++		$(ES) "	INSTALL_DATA $(man5dir)/$$i"; \
+ 		$(INSTALL_DATA) $$i $(DESTDIR)$(man5dir)/$$i; \
+ 	done
+ 	$(Q) for i in ext2 ext3 ext4 ext4dev; do \
+-		echo "	LINK $(man8dir)/fsck.$$i.8"; \
++		$(ES) "	LINK $(man8dir)/fsck.$$i.8"; \
+ 		(cd $(DESTDIR)$(man8dir); \
+ 			$(LN) $(LINK_INSTALL_FLAGS) e2fsck.8 fsck.$$i.8); \
+ 	done
+ 
+ install-strip: install
+ 	$(Q) for i in $(PROGS); do \
+-		echo "	STRIP $(root_sbindir)/$$i"; \
++		$(ES) "	STRIP $(root_sbindir)/$$i"; \
+ 		$(STRIP) $(DESTDIR)$(root_sbindir)/$$i; \
+ 	done
+ 
+diff --git a/lib/ext2fs/Makefile.in b/lib/ext2fs/Makefile.in
+index f9200fa..0d9ac21 100644
+--- a/lib/ext2fs/Makefile.in
++++ b/lib/ext2fs/Makefile.in
+@@ -463,7 +463,7 @@ $(OBJS): subdirs
+ 
+ gen_crc32ctable: $(srcdir)/gen_crc32ctable.c
+ 	$(E) "	CC $@"
+-	$(Q) $(BUILD_CC) $(BUILD_CFLAGS) -o gen_crc32ctable \
++	$(Q) $(BUILD_CC) $(BUILD_CFLAGS) $(BUILD_LDFLAGS) -o gen_crc32ctable \
+ 		$(srcdir)/gen_crc32ctable.c
+ 
+ crc32c_table.h: gen_crc32ctable
+diff --git a/lib/uuid/Makefile.in b/lib/uuid/Makefile.in
+index caa13f7..7329467 100644
+--- a/lib/uuid/Makefile.in
++++ b/lib/uuid/Makefile.in
+@@ -86,8 +86,8 @@ tst_uuid: tst_uuid.o $(DEPSTATIC_LIBUUID)
+ 
+ uuid_time: $(srcdir)/uuid_time.c $(DEPLIBUUID)
+ 	$(E) "	LD $@"
+-	$(Q) $(CC) $(ALL_CFLAGS) -DDEBUG -o uuid_time $(srcdir)/uuid_time.c \
+-		$(LIBUUID)
++	$(Q) $(CC) $(ALL_CFLAGS) $(LDFLAGS) -DDEBUG -o uuid_time \
++		$(srcdir)/uuid_time.c $(LIBUUID)
+ 
+ uuid.3: $(DEP_SUBSTITUTE) $(srcdir)/uuid.3.in
+ 	$(E) "	SUBST $@"
+diff --git a/misc/Makefile.in b/misc/Makefile.in
+index cc0b939..0692126 100644
+--- a/misc/Makefile.in
++++ b/misc/Makefile.in
+@@ -410,7 +410,7 @@ blkid.1: $(DEP_SUBSTITUTE) $(srcdir)/blkid.1.in
+ 	$(Q) $(SUBSTITUTE_UPTIME) $(srcdir)/blkid.1.in blkid.1 
+ 
+ e2freefrag.8: $(DEP_SUBSTITUTE) $(srcdir)/e2freefrag.8.in
+-	@echo "	SUBST $@"
++	$(E) "	SUBST $@"
+ 	@$(SUBSTITUTE_UPTIME) $(srcdir)/e2freefrag.8.in e2freefrag.8
+ 
+ filefrag.8: $(DEP_SUBSTITUTE) $(srcdir)/filefrag.8.in
+@@ -427,44 +427,44 @@ installdirs:
+ 
+ install: all $(SMANPAGES) $(UMANPAGES) installdirs
+ 	$(Q) for i in $(SPROGS); do \
+-		echo "	INSTALL $(root_sbindir)/$$i"; \
++		$(ES) "	INSTALL $(root_sbindir)/$$i"; \
+ 		$(INSTALL_PROGRAM) $$i $(DESTDIR)$(root_sbindir)/$$i; \
+ 	done
+ 	$(Q) for i in $(USPROGS); do \
+-		echo "	INSTALL $(sbindir)/$$i"; \
++		$(ES) "	INSTALL $(sbindir)/$$i"; \
+ 		$(INSTALL_PROGRAM) $$i $(DESTDIR)$(sbindir)/$$i; \
+ 	done
+ 	$(Q) for i in ext2 ext3 ext4 ext4dev; do \
+-		echo "	LINK $(root_sbindir)/mkfs.$$i"; \
++		$(ES) "	LINK $(root_sbindir)/mkfs.$$i"; \
+ 		(cd $(DESTDIR)$(root_sbindir); \
+ 			$(LN) $(LINK_INSTALL_FLAGS) mke2fs mkfs.$$i); \
+ 	done
+ 	$(Q) (cd $(DESTDIR)$(root_sbindir); \
+ 		$(LN) $(LINK_INSTALL_FLAGS) tune2fs e2label)
+ 	$(Q) if test -n "$(FINDFS_LINK)"; then \
+-		echo "	LINK $(root_sbindir)/findfs"; \
++		$(ES) "	LINK $(root_sbindir)/findfs"; \
+ 		(cd $(DESTDIR)$(root_sbindir); \
+ 		$(LN) $(LINK_INSTALL_FLAGS) tune2fs $(FINDFS_LINK)); \
+ 	fi
+ 	$(Q) for i in $(UPROGS); do \
+-		echo "	INSTALL $(bindir)/$$i"; \
++		$(ES) "	INSTALL $(bindir)/$$i"; \
+ 		$(INSTALL_PROGRAM) $$i $(DESTDIR)$(bindir)/$$i; \
+ 	done
+ 	$(Q) for i in $(LPROGS); do \
+-		echo "	INSTALL $(libdir)/$$i"; \
++		$(ES) "	INSTALL $(libdir)/$$i"; \
+ 		$(INSTALL_PROGRAM) $$i $(DESTDIR)$(libdir)/$$i; \
+ 	done
+ 	$(Q) for i in $(SMANPAGES); do \
+ 		for j in $(COMPRESS_EXT); do \
+ 			$(RM) -f $(DESTDIR)$(man8dir)/$$i.$$j; \
+ 		done; \
+-		echo "	INSTALL_DATA $(man8dir)/$$i"; \
++		$(ES) "	INSTALL_DATA $(man8dir)/$$i"; \
+ 		$(INSTALL_DATA) $$i $(DESTDIR)$(man8dir)/$$i; \
+ 	done
+ 	$(Q) $(RM) -f $(DESTDIR)$(man8dir)/mkfs.ext2.8.gz \
+ 		$(DESTDIR)$(man8dir)/mkfs.ext3.8.gz
+ 	$(Q) for i in ext2 ext3 ext4 ext4dev; do \
+-		echo "	LINK mkfs.$$i.8"; \
++		$(ES) "	LINK mkfs.$$i.8"; \
+ 		(cd $(DESTDIR)$(man8dir); \
+ 			$(LN) $(LINK_INSTALL_FLAGS) mke2fs.8 mkfs.$$i.8); \
+ 	done
+@@ -472,14 +472,14 @@ install: all $(SMANPAGES) $(UMANPAGES) installdirs
+ 		for j in $(COMPRESS_EXT); do \
+ 			$(RM) -f $(DESTDIR)$(man1dir)/$$i.$$j; \
+ 		done; \
+-		echo "	INSTALL_DATA $(man1dir)/$$i"; \
++		$(ES) "	INSTALL_DATA $(man1dir)/$$i"; \
+ 		$(INSTALL_DATA) $$i $(DESTDIR)$(man1dir)/$$i; \
+ 	done
+ 	$(Q) for i in $(FMANPAGES); do \
+ 		for j in $(COMPRESS_EXT); do \
+ 			$(RM) -f $(DESTDIR)$(man5dir)/$$i.$$j; \
+ 		done; \
+-		echo "	INSTALL_DATA $(man5dir)/$$i"; \
++		$(ES) "	INSTALL_DATA $(man5dir)/$$i"; \
+ 		$(INSTALL_DATA) $$i $(DESTDIR)$(man5dir)/$$i; \
+ 	done
+ 	$(Q) if test -f $(DESTDIR)$(root_sysconfdir)/mke2fs.conf; then \
+@@ -488,13 +488,13 @@ install: all $(SMANPAGES) $(UMANPAGES) installdirs
+ 			true; \
+ 		else \
+ 			if grep -q ext4dev $(DESTDIR)$(root_sysconfdir)/mke2fs.conf ; then \
+-				echo "	INSTALL_DATA $(root_sysconfdir)/mke2fs.conf.e2fsprogs-new"; \
++				$(ES) "	INSTALL_DATA $(root_sysconfdir)/mke2fs.conf.e2fsprogs-new"; \
+ 				$(INSTALL_DATA) mke2fs.conf \
+ 					$(DESTDIR)$(root_sysconfdir)/mke2fs.conf.e2fsprogs-new; \
+ 				echo "Warning: installing mke2fs.conf in $(DESTDIR)$(root_sysconfdir)/mke2fs.conf.e2fsprogs-new"; \
+ 				echo "Check to see if you need to update your $(root_sysconfdir)/mke2fs.conf"; \
+ 			else \
+-				echo "	INSTALL_DATA $(root_sysconfdir)/mke2fs.conf"; \
++				$(ES) "	INSTALL_DATA $(root_sysconfdir)/mke2fs.conf"; \
+ 				mv $(DESTDIR)$(root_sysconfdir)/mke2fs.conf \
+ 				   $(DESTDIR)$(root_sysconfdir)/mke2fs.conf.e2fsprogs-old; \
+ 				$(INSTALL_DATA) mke2fs.conf \
+@@ -506,18 +506,18 @@ install: all $(SMANPAGES) $(UMANPAGES) installdirs
+ 			echo " "; \
+ 		fi; \
+ 	else \
+-		echo "	INSTALL_DATA $(root_sysconfdir)/mke2fs.conf"; \
++		$(ES) "	INSTALL_DATA $(root_sysconfdir)/mke2fs.conf"; \
+ 		$(INSTALL_DATA) mke2fs.conf \
+ 			$(DESTDIR)$(root_sysconfdir)/mke2fs.conf; \
+ 	fi
+ 
+ install-strip: install
+ 	$(Q) for i in $(SPROGS); do \
+-		echo "	STRIP $(root_sbindir)/$$i"; \
++		$(E) "	STRIP $(root_sbindir)/$$i"; \
+ 		$(STRIP) $(DESTDIR)$(root_sbindir)/$$i; \
+ 	done
+ 	$(Q) for i in $(USPROGS); do \
+-		echo "	STRIP $(sbindir)/$$i"; \
++		$(E) "	STRIP $(sbindir)/$$i"; \
+ 		$(STRIP) $(DESTDIR)$(sbindir)/$$i; \
+ 	done
+ 

@@ -1,0 +1,19 @@
+Description: Update version.h using the proper abbreviation for June
+ The configure script uses the date string in version.h to calculate a
+ version date code.  This only used for tagging prerelease tarball, so
+ it's not a big deal, but fix this for correctness' sake.
+Author: Theodore Ts'o <tytso@mit.edu>
+Origin: http://git.kernel.org/?p=fs/ext2/e2fsprogs.git;a=commitdiff;h=f6cb2df7a4600fe9d30573e4c5d779db48b7a342
+
+---
+
+diff --git a/version.h b/version.h
+index 7aaddff..a1b96c9 100644
+--- a/version.h
++++ b/version.h
+@@ -8,4 +8,4 @@
+  */
+ 
+ #define E2FSPROGS_VERSION "1.42.4"
+-#define E2FSPROGS_DATE "12-June-2012"
++#define E2FSPROGS_DATE "12-Jun-2012"

@@ -1,0 +1,19 @@
+Description: chattr: add the -C option to the usage message
+Author: Liu Bo <liubo2009@cn.fujitsu.com>
+Origin: http://git.kernel.org/?p=fs/ext2/e2fsprogs.git;a=commitdiff;h=329f99041ea733921ec0c15370d50a1ba7ecf08a
+
+---
+
+diff --git a/misc/chattr.c b/misc/chattr.c
+index 141ea6e..1b137fe 100644
+--- a/misc/chattr.c
++++ b/misc/chattr.c
+@@ -83,7 +83,7 @@ static unsigned long sf;
+ static void usage(void)
+ {
+ 	fprintf(stderr,
+-		_("Usage: %s [-RVf] [-+=AacDdeijsSu] [-v version] files...\n"),
++		_("Usage: %s [-RVf] [-+=AaCcDdeijsSu] [-v version] files...\n"),
+ 		program_name);
+ 	exit(1);
+ }
