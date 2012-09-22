@@ -68,6 +68,9 @@ ec	EXT2_ET_MAGIC_EXTENT_HANDLE,
 ec	EXT2_ET_BAD_MAGIC,
 	"Bad magic number in super-block"
 
+ec	EXT2_ET_BAD_EXT_ATTR_MAGIC,
+	"Bad magic number in extend attribute"
+
 ec	EXT2_ET_REV_TOO_HIGH,
 	"Filesystem revision too high"
 
@@ -475,5 +478,8 @@ ec	EXT2_ET_MMP_CSUM_INVALID,
 
 ec	EXT2_ET_FILE_EXISTS,
 	"Ext2 file already exists"
+
+ec	EXT2_ET_BAD_EXTRA_SIZE,
+	"Bad inode extra isizevalue"
 
 	end

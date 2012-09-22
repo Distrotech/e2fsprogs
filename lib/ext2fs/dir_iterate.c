@@ -123,8 +123,14 @@ errcode_t ext2fs_dir_iterate2(ext2_filsys fs,
 	ctx.func = func;
 	ctx.priv_data = priv_data;
 	ctx.errcode = 0;
-	retval = ext2fs_block_iterate3(fs, dir, BLOCK_FLAG_READ_ONLY, 0,
-				       ext2fs_process_dir_block, &ctx);
+	if (ext2fs_inode_has_inline_data(fs, dir))
+		retval = ext2fs_inline_data_iterate(fs, dir,
+						BLOCK_FLAG_READ_ONLY, 0,
+						ext2fs_process_dir_inline_data,
+						&ctx);
+	else
+		retval = ext2fs_block_iterate3(fs, dir, BLOCK_FLAG_READ_ONLY, 0,
+					       ext2fs_process_dir_block, &ctx);
 	if (!block_buf)
 		ext2fs_free_mem(&ctx.buf);
 	if (retval)
@@ -282,3 +288,95 @@ next:
 	return 0;
 }
 
+int ext2fs_process_dir_inline_data(ext2_filsys	fs,
+				   char		*buf,
+				   unsigned int	buf_len,
+				   e2_blkcnt_t	blockcnt,
+				   struct ext2_inode_large *inode,
+				   void		*priv_data)
+{
+	struct dir_context *ctx = (struct dir_context *) priv_data;
+	unsigned int	offset = 0;
+	unsigned int	next_real_entry = 0;
+	int		ret = 0;
+	int		changed = 0;
+	int		do_abort = 0;
+	unsigned int	rec_len, size;
+	int		entry;
+	struct ext2_dir_entry *dirent;
+
+	if (blockcnt < 0)
+		return 0;
+
+	entry = blockcnt ? DIRENT_OTHER_FILE : DIRENT_DOT_FILE;
+
+	while (offset < buf_len) {
+		dirent = (struct ext2_dir_entry *) (buf + offset);
+		if (ext2fs_get_rec_len(fs, dirent, &rec_len))
+			return BLOCK_ABORT;
+		if (((offset + rec_len) > buf_len) ||
+		    (rec_len < 8) ||
+		    ((rec_len % 4) != 0) ||
+		    ((((unsigned) dirent->name_len & 0xFF)+8) > rec_len)) {
+			ctx->errcode = EXT2_ET_DIR_CORRUPTED;
+			return BLOCK_ABORT;
+		}
+		if (!dirent->inode &&
+		    !(ctx->flags & DIRENT_FLAG_INCLUDE_EMPTY))
+			goto next;
+
+		ret = (ctx->func)(ctx->dir,
+				  (next_real_entry > offset) ?
+				  DIRENT_DELETED_FILE : entry,
+				  dirent, offset,
+				  buf_len, buf,
+				  ctx->priv_data);
+		if (entry < DIRENT_OTHER_FILE)
+			entry++;
+
+		if (ret & DIRENT_CHANGED) {
+			if (ext2fs_get_rec_len(fs, dirent, &rec_len))
+				return BLOCK_ABORT;
+			changed++;
+		}
+		if (ret & DIRENT_ABORT) {
+			do_abort++;
+			break;
+		}
+next:
+		if (next_real_entry == offset)
+			next_real_entry += rec_len;
+
+		if (ctx->flags & DIRENT_FLAG_INCLUDE_REMOVED) {
+			size = ((dirent->name_len & 0xFF) + 11) & ~3;
+
+			if (rec_len != size)  {
+				unsigned int final_offset;
+
+				final_offset = offset + rec_len;
+				offset += size;
+				while (offset < final_offset &&
+				       !ext2fs_validate_entry(fs, buf,
+							      offset,
+							      final_offset))
+					offset += 4;
+				continue;
+			}
+		}
+		offset += rec_len;
+	}
+
+	if (changed) {
+		/* change parent ino */
+		if (buf_len == EXT2_DIR_REC_LEN(2))
+			((struct ext2_dir_entry *)inode->i_block)->inode =
+								 dirent->inode;
+		ctx->errcode = ext2fs_write_inode_full(fs, ctx->dir, (void *)inode,
+						       EXT2_INODE_SIZE(fs->super));
+		if (ctx->errcode)
+			return BLOCK_ABORT;
+	}
+	if (do_abort)
+		return BLOCK_ABORT;
+	return 0;
+}

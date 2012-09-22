@@ -87,6 +87,13 @@ extern int ext2fs_process_dir_block(ext2_filsys  	fs,
 				    int			ref_offset,
 				    void		*priv_data);
 
+extern int ext2fs_process_dir_inline_data(ext2_filsys	fs,
+					  char		*buf,
+					  unsigned int	buf_len,
+					  e2_blkcnt_t	blockcnt,
+					  struct ext2_inode_large *inode,
+					  void		*priv_data);
+
 /* Generic numeric progress meter */
 
 struct ext2fs_numeric_progress_struct {
