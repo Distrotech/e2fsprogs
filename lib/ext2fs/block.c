@@ -345,6 +345,13 @@ errcode_t ext2fs_block_iterate3(ext2_filsys fs,
 		return ctx.errcode;
 
 	/*
+	 * If an inode has inline data, we needn't traverse its blocks
+	 * because no block belong to this inode.
+	 */
+	if (inode.i_flags & EXT4_INLINE_DATA_FL)
+		return ctx.errcode;
+
+	/*
 	 * Check to see if we need to limit large files
 	 */
 	if (flags & BLOCK_FLAG_NO_LARGE) {
