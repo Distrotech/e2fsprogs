@@ -1359,6 +1359,7 @@ extern int ext2fs_inline_data_iterate(ext2_filsys fs,
 						  struct ext2_inode_large *inode,
 						  void *priv_data),
 				      void *priv_data);
+extern int ext2fs_inline_data_header_check(ext2_filsys fs, ext2_ino_t ino);
 extern errcode_t ext2fs_inline_data_mkdir(ext2_filsys fs, ext2_ino_t parent,
 					  ext2_ino_t ino);
 extern errcode_t ext2fs_convert_inline_data(ext2_filsys fs, ext2_ino_t ino,

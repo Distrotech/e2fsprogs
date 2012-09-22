@@ -589,6 +589,15 @@ struct problem_context {
 /* Index start doesn't match start of next extent down */
 #define PR_1_EXTENT_INDEX_START_INVALID	0x01006D
 
+/* INLINE_DATA feature is set, but EXT_ATTR missing */
+#define PR_1_INLINE_DATA_AND_EXT_ATTR  0x01006E
+
+/* Inode has inline data, but superblock is missing INLINE_DATA feature. */
+#define PR_1_INLINE_DATA_FEATURE       0x01006F
+
+/* INLINE_DATA feature is set in a non-inline-data filesystem */
+#define PR_1_INLINE_DATA_SET	       0x010070
+
 /*
  * Pass 1b errors
  */
