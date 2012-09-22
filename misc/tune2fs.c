@@ -137,7 +137,8 @@ static __u32 ok_features[3] = {
 	EXT2_FEATURE_INCOMPAT_FILETYPE |
 		EXT3_FEATURE_INCOMPAT_EXTENTS |
 		EXT4_FEATURE_INCOMPAT_FLEX_BG |
-		EXT4_FEATURE_INCOMPAT_MMP,
+		EXT4_FEATURE_INCOMPAT_MMP |
+		EXT4_FEATURE_INCOMPAT_INLINE_DATA,
 	/* R/O compat */
 	EXT2_FEATURE_RO_COMPAT_LARGE_FILE |
 		EXT4_FEATURE_RO_COMPAT_HUGE_FILE|
@@ -994,6 +995,20 @@ mmp_error:
 			EXT4_FEATURE_RO_COMPAT_GDT_CSUM))
 		disable_uninit_bg(fs,
 				EXT4_FEATURE_RO_COMPAT_GDT_CSUM);
+
+	if (FEATURE_ON(E2P_FEATURE_INCOMPAT,
+		       EXT4_FEATURE_INCOMPAT_INLINE_DATA)) {
+		/* Inline_data feature cannot be enabled if ext_attr is
+		 * disabled.
+		 */
+		if (!(fs->super->s_feature_compat &
+		      EXT2_FEATURE_COMPAT_EXT_ATTR)) {
+			fputs(_("The inline_data feature cannot "
+				"be set if ext_attr feature is disabled.\n"),
+				stderr);
+			return 1;
+		}
+	}
 
 	if (FEATURE_ON(E2P_FEATURE_RO_INCOMPAT,
 				EXT4_FEATURE_RO_COMPAT_QUOTA)) {
