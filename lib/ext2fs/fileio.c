@@ -163,7 +163,8 @@ static errcode_t sync_buffer_position(ext2_file_t file)
 
 	b = file->pos / file->fs->blocksize;
 	if (b != file->blockno) {
-		retval = ext2fs_file_flush(file);
+		if (!ext2fs_inode_has_inline_data(file->fs, file->ino))
+			retval = ext2fs_file_flush(file);
 		if (retval)
 			return retval;
 		file->flags &= ~EXT2_FILE_BUF_VALID;
@@ -185,6 +186,12 @@ static errcode_t load_buffer(ext2_file_t file, int dontfill)
 {
 	ext2_filsys	fs = file->fs;
 	errcode_t	retval;
+
+	/* We first handle inline_data */
+	if (file->inode.i_flags & EXT4_INLINE_DATA_FL) {
+		retval = ext2fs_read_inline_data(fs, file->ino, file->buf);
+		return retval;
+	}
 
 	if (!(file->flags & EXT2_FILE_BUF_VALID)) {
 		retval = ext2fs_bmap2(fs, file->ino, &file->inode,
@@ -279,6 +286,16 @@ errcode_t ext2fs_file_write(ext2_file_t file, const void *buf,
 
 	if (!(file->flags & EXT2_FILE_WRITE))
 		return EXT2_ET_FILE_RO;
+
+	if (fs->super->s_feature_incompat & EXT4_FEATURE_INCOMPAT_INLINE_DATA) {
+		retval = ext2fs_try_to_write_inline_data(fs, file->ino, buf,
+							 nbytes, written);
+		if (!retval)
+			return retval;
+		if (retval != EXT2_ET_INLINE_DATA_NO_SPACE)
+			return retval;
+		retval = 0;
+	}
 
 	while (nbytes > 0) {
 		retval = sync_buffer_position(file);

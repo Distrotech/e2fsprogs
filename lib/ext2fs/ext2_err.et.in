@@ -482,4 +482,7 @@ ec	EXT2_ET_FILE_EXISTS,
 ec	EXT2_ET_BAD_EXTRA_SIZE,
 	"Bad inode extra isizevalue"
 
+ec	EXT2_ET_INLINE_DATA_NO_SPACE,
+	"No free space in inline data"
+
 	end
