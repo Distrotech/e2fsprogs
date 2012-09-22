@@ -1331,6 +1331,9 @@ errcode_t ext2fs_icount_validate(ext2_icount_t icount, FILE *);
 extern errcode_t ext2fs_get_memalign(unsigned long size,
 				     unsigned long align, void *ptr);
 
+/* inline_data.c */
+extern int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino);
+
 /* inode.c */
 extern void ext2fs_free_inode_cache(struct ext2_inode_cache *icache);
 extern errcode_t ext2fs_flush_icache(ext2_filsys fs);
