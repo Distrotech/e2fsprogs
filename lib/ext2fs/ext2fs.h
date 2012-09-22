@@ -1346,6 +1346,7 @@ extern errcode_t ext2fs_get_memalign(unsigned long size,
 
 /* inline_data.c */
 extern int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino);
+extern int ext2fs_get_inline_data_size(ext2_filsys fs, ext2_ino_t ino);
 extern int ext2fs_inline_data_iterate(ext2_filsys fs,
 				      ext2_ino_t ino,
 				      int flags,
@@ -1357,6 +1358,10 @@ extern int ext2fs_inline_data_iterate(ext2_filsys fs,
 						  struct ext2_inode_large *inode,
 						  void *priv_data),
 				      void *priv_data);
+extern errcode_t ext2fs_inline_data_mkdir(ext2_filsys fs, ext2_ino_t parent,
+					  ext2_ino_t ino);
+extern errcode_t ext2fs_convert_inline_data(ext2_filsys fs, ext2_ino_t ino,
+					    void *priv_data);
 
 /* inode.c */
 extern void ext2fs_free_inode_cache(struct ext2_inode_cache *icache);

@@ -267,7 +267,8 @@ errcode_t ext2fs_set_entry_ext_attr(struct ext2_ext_attr_info *i,
 				    struct ext2_ext_attr_search *s)
 {
 	struct ext2_ext_attr_entry *last;
-	size_t freesize, min_offs = s->end - s->base, name_len = strlen(i->name);
+	size_t freesize, min_offs = s->end - s->base;
+	size_t name_len = strlen(i->name);
 
 	last = s->first;
 	for (; !EXT2_EXT_IS_LAST_ENTRY(last); last = EXT2_EXT_ATTR_NEXT(last)) {
@@ -298,8 +299,7 @@ errcode_t ext2fs_set_entry_ext_attr(struct ext2_ext_attr_info *i,
 		memset(s->here, 0, size);
 		s->here->e_name_index = i->name_index;
 		s->here->e_name_len = name_len;
-		memcpy(EXT2_EXT_ATTR_NAME(s->here),
-		       EXT2_EXT_ATTR_NAME(i), name_len);
+		memcpy(EXT2_EXT_ATTR_NAME(s->here), i->name, name_len);
 	} else {
 		if (!s->here->e_value_block && s->here->e_value_size) {
 			void *first_val = s->base + min_offs;

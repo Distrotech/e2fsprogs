@@ -19,13 +19,7 @@
 #include "ext2_fs.h"
 #include "ext2fs.h"
 
-struct expand_dir_struct {
-	int		done;
-	int		newblocks;
-	blk64_t		goal;
-	errcode_t	err;
-	ext2_ino_t	dir;
-};
+#include "ext2fsP.h"
 
 static int expand_dir_proc(ext2_filsys	fs,
 			   blk64_t	*blocknr,
@@ -113,6 +107,16 @@ errcode_t ext2fs_expand_dir(ext2_filsys fs, ext2_ino_t dir)
 	es.goal = 0;
 	es.newblocks = 0;
 	es.dir = dir;
+
+	if (ext2fs_inode_has_inline_data(fs, dir)) {
+		retval = ext2fs_convert_inline_data(fs, dir, &es);
+		if (retval)
+			return retval;
+		if (!es.done)
+			return EXT2_ET_EXPAND_DIR_ERR;
+
+		return 0;
+	}
 
 	retval = ext2fs_block_iterate3(fs, dir, BLOCK_FLAG_APPEND,
 				       0, expand_dir_proc, &es);

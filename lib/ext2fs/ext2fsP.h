@@ -62,6 +62,17 @@ struct dir_context {
 };
 
 /*
+ * For expanding directory
+ */
+struct expand_dir_struct {
+	int		done;
+	int		newblocks;
+	blk64_t		goal;
+	errcode_t	err;
+	ext2_ino_t	dir;
+};
+
+/*
  * Inode cache structure
  */
 struct ext2_inode_cache {
