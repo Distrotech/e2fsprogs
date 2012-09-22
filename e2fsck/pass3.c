@@ -787,6 +787,14 @@ errcode_t e2fsck_expand_directory(e2fsck_t ctx, ext2_ino_t dir,
 	es.ctx = ctx;
 	es.dir = dir;
 
+	if (ext2fs_inode_has_inline_data(fs, dir)) {
+		retval = ext2fs_convert_inline_data(fs, dir, &es);
+		if (retval)
+			return retval;
+
+		return 0;
+	}
+
 	retval = ext2fs_block_iterate3(fs, dir, BLOCK_FLAG_APPEND,
 				       0, expand_dir_proc, &es);
 

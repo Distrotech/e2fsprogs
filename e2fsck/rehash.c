@@ -939,7 +939,8 @@ void e2fsck_rehash_directories(e2fsck_t ctx)
 #if 0
 		fix_problem(ctx, PR_3A_OPTIMIZE_DIR, &pctx);
 #endif
-		pctx.errcode = e2fsck_rehash_dir(ctx, ino);
+		if (!ext2fs_inode_has_inline_data(ctx->fs, ino))
+			pctx.errcode = e2fsck_rehash_dir(ctx, ino);
 		if (pctx.errcode) {
 			end_problem_latch(ctx, PR_LATCH_OPTIMIZE_DIR);
 			fix_problem(ctx, PR_3A_OPTIMIZE_DIR_ERR, &pctx);
