@@ -37,6 +37,8 @@ static errcode_t ext2fs_inline_data_destory_data(ext2_filsys fs, ext2_ino_t ino,
 static errcode_t ext2fs_create_inline_data(ext2_filsys fs,
 					   struct ext2_inode_large *inode,
 					   int len);
+static int do_search_dir(ext2_filsys fs, void *start, int size,
+			 const char *name, size_t len);
 
 static int ext2fs_iget_extra_inode(ext2_filsys fs, struct ext2_inode_large *inode,
 				    struct inline_data *data)
@@ -118,6 +120,93 @@ static errcode_t ext2fs_inline_data_destory_data(ext2_filsys fs, ext2_ino_t ino,
 	memset((void *)inode->i_block, 0, EXT4_MIN_INLINE_DATA_SIZE);
 
 	return 0;
+}
+
+static int do_search_dir(ext2_filsys fs, void *start, int size,
+			 const char *name, size_t len)
+{
+	struct ext2_dir_entry *de;
+	unsigned offset = 0;
+	unsigned rec_len;
+	errcode_t errcode;
+
+	while (offset < size) {
+		de = (struct ext2_dir_entry *)(start + offset);
+		errcode = ext2fs_get_rec_len(fs, de, &rec_len);
+		if (errcode) {
+			com_err("search_dir_inline_data", errcode,
+				"while getting rec_len for inline data");
+			return errcode;
+		}
+		if (de->inode &&
+		    len == (de->name_len & 0xFF) &&
+		    strncmp(name, de->name, len) == 0) {
+			printf("Entry found at inline data\n");
+			return 1;
+		}
+		offset += rec_len;
+	}
+	return 0;
+}
+
+errcode_t ext2fs_inline_data_dirsearch(ext2_filsys fs, ext2_ino_t ino,
+				       const char *name, size_t namelen)
+{
+	struct ext2_inode_large *inode;
+	struct ext2_dir_entry dirent;
+	struct inline_data data;
+	unsigned int offset = 0;
+	unsigned int rec_len;
+	void *inline_start;
+	int inline_size;
+	errcode_t retval = 0;
+
+	retval = ext2fs_get_mem(EXT2_INODE_SIZE(fs->super), &inode);
+	if (retval)
+		return retval;
+
+	retval = ext2fs_read_inode_full(fs, ino, (void *)inode,
+					EXT2_INODE_SIZE(fs->super));
+	if (retval)
+		goto out;
+
+	/* check '.' and '..' firstly */
+	dirent.inode = ino;
+	dirent.name_len = 1;
+	ext2fs_set_rec_len(fs, EXT2_DIR_REC_LEN(2), &dirent);
+	dirent.name[0] = '.';
+	retval = do_search_dir(fs, (void *)&dirent, dirent.rec_len, name, namelen);
+	if (retval)
+		goto out;
+
+	dirent.inode = ((struct ext2_dir_entry *)inode->i_block)->inode;
+	dirent.name_len = 2;
+	ext2fs_set_rec_len(fs, EXT2_DIR_REC_LEN(3), &dirent);
+	dirent.name[0] = '.';
+	dirent.name[1] = '.';
+	retval = do_search_dir(fs, (void *)&dirent, dirent.rec_len, name, namelen);
+	if (retval)
+		goto out;
+
+	inline_start = (void *)inode->i_block + EXT4_INLINE_DATA_DOTDOT_SIZE;
+	inline_size = EXT4_MIN_INLINE_DATA_SIZE - EXT4_INLINE_DATA_DOTDOT_SIZE;
+	retval = do_search_dir(fs, inline_start, inline_size, name, namelen);
+	if (retval)
+		goto out;
+
+	retval = ext2fs_iget_extra_inode(fs, inode, &data);
+	if (retval)
+		goto out;
+	if (data.inline_size == EXT4_MIN_INLINE_DATA_SIZE)
+		goto out;
+
+	inline_start = ext2fs_get_inline_xattr_pos(inode, &data);
+	inline_size = data.inline_size - EXT4_MIN_INLINE_DATA_SIZE;
+	retval = do_search_dir(fs, inline_start, inline_size, name, namelen);
+
+out:
+	ext2fs_free_mem(&inode);
+	return retval;
 }
 
 int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino)
