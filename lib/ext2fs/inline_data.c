@@ -477,6 +477,86 @@ err:
 	ext2fs_free_mem(&inode);
 	return retval;
 }
+
+errcode_t ext2fs_punch_inline_data(ext2_filsys fs, ext2_ino_t ino,
+				   blk64_t start, blk64_t end)
+{
+	struct ext2_inode_large *inode;
+	struct inline_data data;
+	errcode_t retval = 0;
+	void *value;
+	int inline_size, value_len;
+
+	retval = ext2fs_get_mem(EXT2_INODE_SIZE(fs->super), &inode);
+	if (retval)
+		return retval;
+
+	retval = ext2fs_read_inode_full(fs, ino, (void *)inode,
+					EXT2_INODE_SIZE(fs->super));
+	if (retval)
+		goto out;
+
+	retval = ext2fs_iget_extra_inode(fs, inode, &data);
+	if (retval)
+		goto out;
+	inline_size = data.inline_size;
+
+	if (start > inline_size)
+		goto out;
+
+	if (start < inline_size) {
+		struct ext2_ext_attr_ibody_header *header;
+		struct ext2_ext_attr_search s = {
+			.not_found = -1,
+		};
+		struct ext2_ext_attr_info i = {
+			.name_index = EXT4_EXT_ATTR_INDEX_SYSTEM,
+			.name = EXT4_EXT_ATTR_SYSTEM_DATA,
+		};
+
+		if (!data.inline_off)
+			goto out;
+
+		if (inode->i_extra_isize > (EXT2_INODE_SIZE(fs->super) -
+					    EXT2_GOOD_OLD_INODE_SIZE)) {
+			retval = EXT2_ET_BAD_EXTRA_SIZE;
+			goto out;
+		}
+
+		(void)ext2fs_ibody_find_ext_attr(fs, inode, &i, &s);
+
+		value_len = ext2fs_le32_to_cpu(s.here->e_value_size);
+
+		retval = ext2fs_get_mem(s.here->e_value_size, &value);
+		if (retval)
+			goto out;
+
+		retval = ext2fs_ibody_get_ext_attr(fs, inode, i.name_index,
+						   i.name, value, value_len);
+
+		if (!s.not_found) {
+			i.value = value;
+			i.value_len = start > EXT4_MIN_INLINE_DATA_SIZE ?
+					start - EXT4_MIN_INLINE_DATA_SIZE : 0;
+		}
+		retval = ext2fs_set_entry_ext_attr(&i, &s);
+		if (retval)
+			goto out;
+	}
+
+	if (start < EXT4_MIN_INLINE_DATA_SIZE) {
+		memset((void *)inode->i_block + start, 0,
+			EXT4_MIN_INLINE_DATA_SIZE - start);
+	}
+
+	inode->i_size = start;
+	retval = ext2fs_write_inode_full(fs, ino, (void *)inode,
+					 EXT2_INODE_SIZE(fs->super));
+out:
+	ext2fs_free_mem(&inode);
+	return retval;
+}
+
 errcode_t ext2fs_convert_inline_data(ext2_filsys fs,
 				     ext2_ino_t  ino,
 				     void *priv_data)

@@ -1371,6 +1371,8 @@ extern errcode_t ext2fs_try_to_write_inline_data(ext2_filsys fs, ext2_ino_t ino,
 						 unsigned int *written);
 extern errcode_t ext2fs_inline_data_dirsearch(ext2_filsys fs, ext2_ino_t ino,
 					      const char *name, size_t namelen);
+extern errcode_t ext2fs_punch_inline_data(ext2_filsys fs, ext2_ino_t ino,
+					  blk64_t start, blk64_t end);
 
 /* inode.c */
 extern void ext2fs_free_inode_cache(struct ext2_inode_cache *icache);
