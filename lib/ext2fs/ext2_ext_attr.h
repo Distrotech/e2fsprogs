@@ -15,6 +15,10 @@
 /* Maximum number of references to one attribute block */
 #define EXT2_EXT_ATTR_REFCOUNT_MAX	1024
 
+/* Name indexes */
+#define EXT4_EXT_ATTR_INDEX_SYSTEM	7
+#define EXT4_EXT_ATTR_SYSTEM_DATA	"data"
+
 struct ext2_ext_attr_header {
 	__u32	h_magic;	/* magic number for identification */
 	__u32	h_refcount;	/* reference count */
@@ -23,6 +27,10 @@ struct ext2_ext_attr_header {
 	__u32	h_checksum;	/* crc32c(uuid+id+xattrs) */
 				/* id = inum if refcount = 1, else blknum */
 	__u32	h_reserved[3];	/* zero right now */
+};
+
+struct ext2_ext_attr_ibody_header {
+	__u32	h_magic;
 };
 
 struct ext2_ext_attr_entry {
@@ -56,6 +64,28 @@ struct ext2_ext_attr_entry {
 	sizeof(struct ext2_xattr_entry)) & ~EXT2_EXT_ATTR_ROUND)
 #define EXT2_XATTR_SIZE(size) \
 	(((size) + EXT2_EXT_ATTR_ROUND) & ~EXT2_EXT_ATTR_ROUND)
+
+#define IHDR(inode) \
+	((struct ext2_ext_attr_ibody_header *) \
+		((void *)inode + \
+		EXT2_GOOD_OLD_INODE_SIZE + \
+		inode->i_extra_isize))
+#define IFIRST(hdr) ((struct ext2_ext_attr_entry *)((hdr)+1))
+
+struct ext2_ext_attr_info {
+	int name_index;
+	const char *name;
+	const void *value;
+	size_t value_len;
+};
+
+struct ext2_ext_attr_search {
+	struct ext2_ext_attr_entry *first;
+	void *base;
+	void *end;
+	struct ext2_ext_attr_entry *here;
+	int not_found;
+};
 
 #ifdef __KERNEL__
 # ifdef CONFIG_EXT2_FS_EXT_ATTR

@@ -186,3 +186,172 @@ errcode_t ext2fs_adjust_ea_refcount(ext2_filsys fs, blk_t blk,
 	return ext2fs_adjust_ea_refcount2(fs, blk, block_buf, adjust,
 					  newcount);
 }
+
+errcode_t ext2fs_find_entry_ext_attr(struct ext2_ext_attr_entry **pentry,
+				     int name_index, const char *name,
+				     size_t size, int sorted)
+{
+	struct ext2_ext_attr_entry *entry;
+	size_t name_len;
+	int cmp = 1;
+
+	name_len = strlen(name);
+	for (entry = *pentry; !EXT2_EXT_IS_LAST_ENTRY(entry);
+	     entry = EXT2_EXT_ATTR_NEXT(entry)) {
+		cmp = name_index - entry->e_name_index;
+		if (!cmp)
+			cmp = name_len - entry->e_name_len;
+		if (!cmp)
+			cmp = memcmp(name, EXT2_EXT_ATTR_NAME(entry),
+				     name_len);
+		if (!cmp)
+			break;
+	}
+	*pentry = entry;
+
+	return cmp;
+}
+
+errcode_t ext2fs_ibody_find_ext_attr(ext2_filsys fs,
+				     struct ext2_inode_large *inode,
+				     struct ext2_ext_attr_info *i,
+				     struct ext2_ext_attr_search *s)
+{
+	struct ext2_ext_attr_ibody_header *header;
+	int error;
+
+	if (inode->i_extra_isize == 0)
+		return 0;
+	header = IHDR(inode);
+	s->base = s->first = IFIRST(header);
+	s->here = s->first;
+	s->end = (void *)inode + EXT2_INODE_SIZE(fs->super);
+	error = ext2fs_find_entry_ext_attr(&s->here, i->name_index,
+					   i->name, s->end -
+					   (void *)s->base, 0);
+	s->not_found = error;
+	return 0;
+}
+
+extern int ext2fs_ibody_get_ext_attr(ext2_filsys fs,
+				     struct ext2_inode_large *inode,
+				     int name_index, const char *name,
+				     void *buffer, size_t buf_len)
+{
+	struct ext2_ext_attr_ibody_header *header;
+	struct ext2_ext_attr_entry *entry;
+	size_t size;
+	void *end;
+	int error;
+
+	header = IHDR(inode);
+	entry = IFIRST(header);
+	end = (void *)inode + EXT2_INODE_SIZE(fs->super);
+	error = ext2fs_find_entry_ext_attr(&entry, name_index, name,
+					   end - (void *)entry, 0);
+	if (error)
+		return error;
+	size = ext2fs_le32_to_cpu(entry->e_value_size);
+	if (buffer) {
+		if (size > buf_len)
+			return error;
+		memcpy(buffer, (void *)IFIRST(header) +
+		       ext2fs_le16_to_cpu(entry->e_value_offs), size);
+	}
+	error = size;
+
+	return error;
+}
+
+errcode_t ext2fs_set_entry_ext_attr(struct ext2_ext_attr_info *i,
+				    struct ext2_ext_attr_search *s)
+{
+	struct ext2_ext_attr_entry *last;
+	size_t freesize, min_offs = s->end - s->base, name_len = strlen(i->name);
+
+	last = s->first;
+	for (; !EXT2_EXT_IS_LAST_ENTRY(last); last = EXT2_EXT_ATTR_NEXT(last)) {
+		if (!last->e_value_block && last->e_value_size) {
+			size_t offs = ext2fs_le16_to_cpu(last->e_value_offs);
+			if (offs < min_offs)
+				min_offs = offs;
+		}
+	}
+	freesize = min_offs - ((void *)last - s->base) - sizeof(__u32);
+	if (!s->not_found) {
+		if (!s->here->e_value_block && s->here->e_value_size) {
+			size_t size = ext2fs_le32_to_cpu(s->here->e_value_size);
+			freesize += EXT2_EXT_ATTR_SIZE(size);
+		}
+		freesize += EXT2_EXT_ATTR_LEN(name_len);
+	}
+	if (i->value) {
+		if (freesize < EXT2_EXT_ATTR_SIZE(i->value_len) ||
+		    freesize < EXT2_EXT_ATTR_LEN(name_len) +
+			   EXT2_EXT_ATTR_SIZE(i->value_len))
+			return -1;
+	}
+	if (i->value && s->not_found) {
+		size_t size = EXT2_EXT_ATTR_LEN(name_len);
+		size_t rest = (void *)last - (void *)s->here + sizeof(__u32);
+		memmove((void *)s->here + size, s->here, rest);
+		memset(s->here, 0, size);
+		s->here->e_name_index = i->name_index;
+		s->here->e_name_len = name_len;
+		memcpy(EXT2_EXT_ATTR_NAME(s->here),
+		       EXT2_EXT_ATTR_NAME(i), name_len);
+	} else {
+		if (!s->here->e_value_block && s->here->e_value_size) {
+			void *first_val = s->base + min_offs;
+			size_t offs = ext2fs_le16_to_cpu(s->here->e_value_offs);
+			void *val = s->base + offs;
+			size_t size = EXT2_EXT_ATTR_SIZE(
+				ext2fs_le32_to_cpu(s->here->e_value_size));
+
+			if (i->value && size == EXT2_EXT_ATTR_SIZE(i->value_len)) {
+				s->here->e_value_size =
+					ext2fs_cpu_to_le32(i->value_len);
+				memset(val + size - EXT2_EXT_ATTR_PAD, 0,
+					EXT2_EXT_ATTR_PAD);
+				memcpy(val, i->value, i->value_len);
+				return 0;
+			}
+
+			memmove(first_val + size, first_val, val - first_val);
+			memset(first_val, 0, size);
+			s->here->e_value_size = 0;
+			s->here->e_value_offs = 0;
+			min_offs += size;
+
+			last = s->first;
+			while (!EXT2_EXT_IS_LAST_ENTRY(last)) {
+				size_t o = ext2fs_le16_to_cpu(last->e_value_offs);
+				if (!last->e_value_block &&
+				    last->e_value_size && o < offs)
+					last->e_value_offs =
+						ext2fs_cpu_to_le16(o + size);
+				last = EXT2_EXT_ATTR_NEXT(last);
+			}
+		}
+		if (!i->value) {
+			size_t size = EXT2_EXT_ATTR_LEN(name_len);
+			last = (struct ext2_ext_attr_entry *)last - size;
+			memmove(s->here, (void *)s->here + size,
+				(void *)last - (void *)s->here + sizeof(__u32));
+			memset(last, 0, size);
+		}
+	}
+
+	if (i->value) {
+		s->here->e_value_size = ext2fs_cpu_to_le32(i->value_len);
+		if (i->value_len) {
+			size_t size = EXT2_EXT_ATTR_SIZE(i->value_len);
+			void *val = s->base + min_offs - size;
+			s->here->e_value_offs = ext2fs_cpu_to_le16(min_offs - size);
+			memset(val + size - EXT2_EXT_ATTR_PAD, 0,
+				EXT2_EXT_ATTR_PAD);
+			memcpy(val, i->value, i->value_len);
+		}
+	}
+	return 0;
+}
