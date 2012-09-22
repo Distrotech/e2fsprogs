@@ -72,8 +72,14 @@ static int db_dir_proc(ext2_filsys fs, struct ext2_db_entry2 *db_info,
 	ctx->dir = db_info->ino;
 	ctx->errcode = 0;
 
-	ret = ext2fs_process_dir_block(fs, &db_info->blk,
-				       db_info->blockcnt, 0, 0, priv_data);
+	if (ext2fs_inode_has_inline_data(fs, ctx->dir))
+		ret = ext2fs_inline_data_iterate(fs, ctx->dir, 0, 0,
+						 ext2fs_process_dir_inline_data,
+						 priv_data);
+	else
+		ret = ext2fs_process_dir_block(fs, &db_info->blk,
+					       db_info->blockcnt,
+					       0, 0, priv_data);
 	if ((ret & BLOCK_ABORT) && !ctx->errcode)
 		return DBLIST_ABORT;
 	return 0;
