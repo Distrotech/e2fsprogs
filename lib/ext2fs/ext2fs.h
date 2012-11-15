@@ -1347,7 +1347,7 @@ extern errcode_t ext2fs_get_memalign(unsigned long size,
 
 /* inline_data.c */
 extern int ext2fs_inode_has_inline_data(ext2_filsys fs, ext2_ino_t ino);
-extern int ext2fs_get_inline_data_size(ext2_filsys fs, ext2_ino_t ino);
+extern unsigned int ext2fs_get_inline_data_size(ext2_filsys fs, ext2_ino_t ino);
 extern int ext2fs_inline_data_iterate(ext2_filsys fs,
 				      ext2_ino_t ino,
 				      int flags,
