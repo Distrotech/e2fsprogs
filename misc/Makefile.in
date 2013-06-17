@@ -84,6 +84,8 @@ SRCS=	$(srcdir)/tune2fs.c $(srcdir)/mklost+found.c $(srcdir)/mke2fs.c \
 		$(srcdir)/ismounted.c $(srcdir)/../e2fsck/profile.c \
 		$(srcdir)/e2undo.c $(srcdir)/e2freefrag.c
 
+SEM_INIT_LIB = @SEM_INIT_LIB@
+LIBINTL += $(SEM_INIT_LIB)
 LIBS= $(LIBEXT2FS) $(LIBCOM_ERR) 
 DEPLIBS= $(LIBEXT2FS) $(DEPLIBCOM_ERR)
 PROFILED_LIBS= $(PROFILED_LIBEXT2FS) $(PROFILED_LIBCOM_ERR)
@@ -150,7 +152,7 @@ partinfo: partinfo.o
 e2initrd_helper: e2initrd_helper.o $(DEPLIBS) $(DEPLIBBLKID) $(LIBEXT2FS)
 	$(E) "	LD $@"
 	$(Q) $(CC) $(ALL_LDFLAGS) -o e2initrd_helper e2initrd_helper.o $(LIBS) \
-		$(LIBBLKID) $(LIBEXT2FS) $(LIBINTL)
+		$(LIBBLKID) $(LIBEXT2FS) $(LIBINTL) $(LIBUUID)
 
 tune2fs: $(TUNE2FS_OBJS) $(DEPLIBS) $(DEPLIBS_E2P) $(DEPLIBBLKID) \
 		$(DEPLIBUUID) $(DEPLIBQUOTA) $(LIBEXT2FS)
@@ -210,7 +212,7 @@ e2undo.profiled: $(E2UNDO_OBJS) $(PROFILED_DEPLIBS)
 
 e4defrag: $(E4DEFRAG_OBJS) $(DEPLIBS)
 	$(E) "	LD $@"
-	$(Q) $(CC) $(ALL_LDFLAGS) -o e4defrag $(E4DEFRAG_OBJS) $(LIBS)
+	$(Q) $(CC) $(ALL_LDFLAGS) -o e4defrag $(E4DEFRAG_OBJS) $(LIBS) $(SEM_INIT_LIB)
 
 e4defrag.profiled: $(E4DEFRAG_OBJS) $(PROFILED_DEPLIBS)
 	$(E) "	LD $@"
@@ -292,7 +294,7 @@ dumpe2fs.profiled: $(DUMPE2FS_OBJS) $(PROFILED_DEPLIBS) \
 
 fsck: $(FSCK_OBJS) $(DEPLIBBLKID)
 	$(E) "	LD $@"
-	$(Q) $(CC) $(ALL_LDFLAGS) -o fsck $(FSCK_OBJS) $(LIBBLKID) $(LIBINTL)
+	$(Q) $(CC) $(ALL_LDFLAGS) -o fsck $(FSCK_OBJS) $(LIBBLKID) $(LIBINTL) $(LIBUUID)
 
 fsck.profiled: $(FSCK_OBJS) $(PROFILED_DEPLIBBLKID)
 	$(E) "	LD $@"
@@ -318,7 +320,7 @@ logsave.profiled: logsave.o
 
 e2freefrag: $(E2FREEFRAG_OBJS)
 	$(E) "	LD $@"
-	$(Q) $(CC) $(ALL_LDFLAGS) -o e2freefrag $(E2FREEFRAG_OBJS) $(LIBS)
+	$(Q) $(CC) $(ALL_LDFLAGS) -o e2freefrag $(E2FREEFRAG_OBJS) $(LIBS) $(SEM_INIT_LIB)
 
 e2freefrag.profiled: $(E2FREEFRAG_OBJS) $(PROFILED_DEPLIBS)
 	$(E) "	LD $@"
