@@ -232,8 +232,14 @@ static errcode_t raw_write_blk(io_channel channel,
 	if ((channel->align == 0) ||
 	    (IS_ALIGNED(buf, channel->align) &&
 	     IS_ALIGNED(size, channel->align))) {
+	retry:
 		actual = write(data->dev, buf, size);
 		if (actual != size) {
+			if (actual > 0 && (actual % 4096) == 0) {
+				buf += actual;
+				size -= actual;
+				goto retry;
+			}
 		short_write:
 			retval = EXT2_ET_SHORT_WRITE;
 			goto error_out;
