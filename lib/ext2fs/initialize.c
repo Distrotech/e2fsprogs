@@ -173,6 +173,13 @@ errcode_t ext2fs_initialize(const char *name, int flags,
 	set_field(s_raid_stripe_width, 0);	/* default stripe width: 0 */
 	set_field(s_log_groups_per_flex, 0);
 	set_field(s_flags, 0);
+	/* Encryption algorithms for data and filename encryption */
+	if (super->s_feature_incompat & EXT4_FEATURE_INCOMPAT_ENCRYPT) {
+		set_field(s_encrypt_algos[0],
+			  EXT4_ENCRYPTION_MODE_AES_256_XTS);
+		set_field(s_encrypt_algos[1],
+			  EXT4_ENCRYPTION_MODE_AES_256_CBC);
+	}
 	assign_field(s_backup_bgs[0]);
 	assign_field(s_backup_bgs[1]);
 	if (super->s_feature_incompat & ~EXT2_LIB_FEATURE_INCOMPAT_SUPP) {

@@ -638,6 +638,20 @@ write_superblock:
 	}
 }
 
+static char * encryption_algo2string(int mode)
+{
+	switch (mode) {
+	case EXT4_ENCRYPTION_MODE_INVALID:
+		return "Invalid";
+	case  EXT4_ENCRYPTION_MODE_AES_256_XTS:
+		return "AES-256-XTS";
+	case  EXT4_ENCRYPTION_MODE_AES_256_GCM:
+		return "AES-256-GCM";
+	case  EXT4_ENCRYPTION_MODE_AES_256_CBC:
+		return "AES-256-CBC";
+	}
+}
+
 static void show_stats(ext2_filsys fs)
 {
 	struct ext2_super_block *s = fs->super;
@@ -711,6 +725,12 @@ skip_details:
 
 	if (!e2p_is_null_uuid(s->s_uuid))
 		printf(_("Filesystem UUID: %s\n"), e2p_uuid2str(s->s_uuid));
+	if (s->s_feature_incompat& EXT4_FEATURE_INCOMPAT_ENCRYPT) {
+		printf(_("File encryption: %s\n"),
+			 encryption_algo2string(s->s_encrypt_algos[0]));
+		printf(_("Directory encryption: %s\n"),
+			 encryption_algo2string(s->s_encrypt_algos[1]));
+	}
 	printf("%s", _("Superblock backups stored on blocks: "));
 	group_block = s->s_first_data_block;
 	col_left = 0;
@@ -1076,7 +1096,8 @@ static __u32 ok_features[3] = {
 		EXT4_FEATURE_INCOMPAT_FLEX_BG|
 		EXT4_FEATURE_INCOMPAT_MMP |
 		EXT4_FEATURE_INCOMPAT_64BIT|
-		EXT4_FEATURE_INCOMPAT_INLINE_DATA,
+		EXT4_FEATURE_INCOMPAT_INLINE_DATA|
+		EXT4_FEATURE_INCOMPAT_ENCRYPT,
 	/* R/O compat */
 	EXT2_FEATURE_RO_COMPAT_LARGE_FILE|
 		EXT4_FEATURE_RO_COMPAT_HUGE_FILE|
