@@ -730,6 +730,7 @@ E2INITRD_MAN
 E2INITRD_PROG
 FSCK_MAN
 FSCK_PROG
+CRYPT_CMT
 DEFRAG_CMT
 RESIZER_CMT
 IMAGER_CMT
@@ -876,6 +877,7 @@ enable_debugfs
 enable_imager
 enable_resizer
 enable_defrag
+enable_crypt
 enable_fsck
 enable_e2initrd_helper
 enable_tls
@@ -1539,6 +1541,7 @@ Optional Features:
   --disable-imager   	  disable support of e2image program
   --disable-resizer   	  disable support of e2resize program
   --disable-defrag   	  disable support of e4defrag program
+  --disable-crypt   	  disable support of e4crypt program
   --enable-fsck           build fsck wrapper program
   --enable-e2initrd-helper build e2initrd-helper program
   --disable-tls           disable use of thread local support
@@ -5827,6 +5830,34 @@ else
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Disabling e4defrag support by default" >&5
 $as_echo "Disabling e4defrag support by default" >&6; }
 	DEFRAG_CMT="#"
+fi
+
+fi
+
+
+# Check whether --enable-crypt was given.
+if test "${enable_crypt+set}" = set; then :
+  enableval=$enable_crypt; if test "$enableval" = "no"
+then
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Disabling e4crypt support" >&5
+$as_echo "Disabling e4crypt support" >&6; }
+	CRYPT_CMT="#"
+else
+	CRYPT_CMT=
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Enabling  e4crypt support" >&5
+$as_echo "Enabling  e4crypt support" >&6; }
+fi
+
+else
+  if test -z "$WITH_DIET_LIBC"
+then
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Enabling e4crypt support by default" >&5
+$as_echo "Enabling e4crypt support by default" >&6; }
+	CRYPT_CMT=
+else
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Disabling e4crypt support by default" >&5
+$as_echo "Disabling e4crypt support by default" >&6; }
+	CRYPT_CMT="#"
 fi
 
 fi

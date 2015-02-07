@@ -1,0 +1,42 @@
+.TH E4CRYPT 8 "Dec 2014" "e4crypt version 1"
+.SH NAME
+e4crypt \- ext4 filesystem encryption utility
+.SH SYNOPSIS
+.B e4crypt -[sgxW] [policy] path1 [path2 ... pathN]
+.SH DESCRIPTION
+.B e4crypt
+performs encryption management for ext4 file systems.
+.SH OPTIONS
+.IP "-s <policy> path1 [path2 ... pathN]"
+Sets a policy for files/directories specified in path1 [path2 ... pathN].
+Currently, all directories and files MUST be empty to set the policy.
+Policy has the following format:
+key_location1.key_description1#...#key_locationK.key_descriptionK,
+where key_location is the search location for the key described by
+key_description. Currently, key_location can be one of supported keyrings,
+such as: @t, @p, @s, @g, @u, and @us. See
+.BR keyctl (1)
+for further details. Note, setting a policy over a file will fail without
+.B -W
+option.
+.IP "-g path1 [path2 ... pathN]
+Gets policy for all files/directories listed in the path1 - pathN options.
+.IP "-p path1 [path2 ... pathN]
+Removes encryption policy from files/directories listed in the path1 -
+pathN options. Note, will fail to remove a policy from a non empty file or
+directory.
+.IP "-W ignore-danger"
+This allows to set a policy over a file. Note, setting policy over a single
+file might lead to inconsistency of policies in a directory and even to
+disabling encryption alltogether. For instance, if a parent directory does not
+have a policy, and there is an application, which uses temp files, so that it
+copies temp file on exit over the original one, then extended attributes in
+encryption name index will not be copied, i.e., encryption will be disabled.
+That is why an explicit user consent is required to set policy over a file,
+in order to avoid confusion.
+.SH AUTHOR
+Written by Michael Halcrow <mhalcrow@google.com> and Ildar Muslukhov
+<muslukhovi@gmail.com>.
+.SH SEE ALSO
+.BR mke2fs (8),
+.BR mount (8).
