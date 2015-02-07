@@ -16,6 +16,7 @@
 #ifndef _LINUX_EXT2_FS_H
 #define _LINUX_EXT2_FS_H
 
+#include <stdint.h>
 #include <ext2fs/ext2_types.h>		/* Changed from linux/types.h */
 
 /*
@@ -565,11 +566,38 @@ struct ext2_inode_large {
 /* Metadata checksum algorithms */
 #define EXT2_CRC32C_CHKSUM		1
 
-/* Encryption algorithms */
+/* Encryption algorithms, key size and key reference len */
 #define EXT4_ENCRYPTION_MODE_INVALID		0
 #define EXT4_ENCRYPTION_MODE_AES_256_XTS	1
 #define EXT4_ENCRYPTION_MODE_AES_256_GCM	2
 #define EXT4_ENCRYPTION_MODE_AES_256_CBC	3
+
+#define EXT4_AES_256_XTS_KEY_SIZE		64
+#define EXT4_AES_256_GCM_KEY_SIZE		32
+#define EXT4_AES_256_CBC_KEY_SIZE		32
+/* Used to wrap data encryption keys. */
+#define EXT4_AES_256_CTR_KEY_SIZE		32
+#define EXT4_MAX_KEY_SIZE EXT4_AES_256_XTS_KEY_SIZE
+
+#define EXT4_KEYREF_LOGON_PREFIX		"ext4-key:"
+#define EXT4_KEYREF_LOGON_PREFIX_LEN		9
+#define EXT4_KEYREF_DERIVED_LEN			16
+#define EXT4_KEYREF_DERIVED_TOTAL_LEN		(EXT4_KEYREF_LOGON_PREFIX_LEN +\
+						 EXT4_KEYREF_DERIVED_LEN)
+#define EXT4_KEYREF_MIN_LEN			8
+
+/* Password derivation constants */
+#define EXT4_DEFAULT_SALT_SIZE			8
+#define EXT4_DEFAULT_SALT			"fd7ea91d4f9dc1b5"
+#define EXT4_MAX_PASSWORD_LENGTH		64
+#define EXT4_PBKDF2_ITERATIONS			0xFFFF
+
+/* MUST be in sync with ext4_crypto.c in kernel. */
+struct ext4_encryption_key {
+	uint32_t mode;
+	char raw[EXT4_MAX_KEY_SIZE];
+	uint32_t size;
+};
 
 /*
  * Structure of the super block

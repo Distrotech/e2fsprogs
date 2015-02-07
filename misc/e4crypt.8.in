@@ -34,6 +34,18 @@ copies temp file on exit over the original one, then extended attributes in
 encryption name index will not be copied, i.e., encryption will be disabled.
 That is why an explicit user consent is required to set policy over a file,
 in order to avoid confusion.
+.IP "-a keyring"
+This allows to add a key to a keyring. By default, user will be promted to
+enter a passphrase. This behaviour can be changed by '-p passphrase' or
+'-b hexstring' options. The first one allows to specify passphrase in the
+command line, while the latter allows to specify a key in hex form. Note, that
+by default the key reference (i.e., searchable string in the keyring) is
+produced by hashing (SHA512) the content of the key and truncating the output to
+8 bytes. User can use '-k keyref' to provide alternative key reference name for
+the key.
+.IP "-r keyring"
+This command allows to remove a key from a keyring. Note, '-r' command requires
+option '-k keyref' to be provided.
 .SH AUTHOR
 Written by Michael Halcrow <mhalcrow@google.com> and Ildar Muslukhov
 <muslukhovi@gmail.com>.
